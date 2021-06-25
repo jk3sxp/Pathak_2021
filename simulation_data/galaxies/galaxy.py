@@ -17,6 +17,11 @@ cosmo = FlatLambdaCDM(H0= (h * 100) * u.km / u.s / u.Mpc, Tcmb0=2.725 * u.K, Om0
 import scipy
 from scipy import stats
 
+import h5py
+import os
+import urllib
+from pathlib import Path
+
 
 def get_galaxy_particle_data(id, redshift, populate_dict=False):
     '''
@@ -56,20 +61,14 @@ def get_galaxy_particle_data(id, redshift, populate_dict=False):
                                                 [units: none]
     '''
     stellar_data = {}
-    import h5py
-    import os
-    import urllib
-    from pathlib import Path
+    
     new_saved_filename = os.path.join('redshift_'+str(redshift)+'_data', 'cutout_'+str(id)+'_redshift_'+str(redshift)+'_data.hdf5')
 
     if Path('redshift_'+str(redshift)+'_data\cutout_'+str(id)+'_redshift_'+str(redshift)+'_data.hdf5').is_file():
         pass
     else:
-        params = {'stars':'ParticleIDs,Coordinates,GFM_StellarFormationTime,GFM_InitialMass,GFM_Metallicity,BirthPos,BirthVel,GFM_StellarPhotometrics,Masses'}
-        url = "http://www.tng-project.org/api/TNG100-1/snapshots/z=" + str(redshift) + "/subhalos/" + str(id)
-        sub = get(url) # get json response of subhalo properties
-        saved_filename = get(url + "/cutout.hdf5",params) # get and save HDF5 cutout file
-        with h5py.File('cutout_'+str(id)+'.hdf5', mode='r') as f: #read from h5py file
+        sub, saved_filename = download_data(id, redshift)
+        with h5py.File(saved_filename, mode='r') as f: #read from h5py file
             dx = f['PartType4']['Coordinates'][:,0] - sub['pos_x']
             dy = f['PartType4']['Coordinates'][:,1] - sub['pos_y']
             dz = f['PartType4']['Coordinates'][:,2] - sub['pos_z']
@@ -109,10 +108,7 @@ def get_galaxy_particle_data(id, redshift, populate_dict=False):
         Gyr_redshift = cosmo.age(redshift).value #units:Gyr
         LookbackTime = Gyr_redshift - starFormationTime #units:Gyr
         starMetallicity = starMetallicity / 0.0127 #units: solar metallicity
-
-        #delete pre-existing file since this is faster than replacing each field
-        import os
-        os.remove('cutout_'+str(id)+'.hdf5')
+        
         #create new file with same filename
         new_saved_filename = os.path.join('redshift_'+str(redshift)+'_data', 'cutout_'+str(id)+'_redshift_'+str(redshift)+'_data.hdf5')
         #new_saved_filename = 'cutout_'+str(id)+'_redshift_'+str(redshift)+'_data.hdf5'
@@ -163,6 +159,22 @@ def get_galaxy_particle_data(id, redshift, populate_dict=False):
         return
     else:
         return stellar_data
+    
+    
+def download_data(id, redshift):
+    new_saved_filename = os.path.join('redshift_'+str(redshift)+'_data', 'cutout_'+str(id)+'_redshift_'+str(redshift)+'_rawdata.hdf5')
+    url = "http://www.tng-project.org/api/TNG100-1/snapshots/z=" + str(redshift) + "/subhalos/" + str(id)
+    sub = get(url) # get json response of subhalo properties
+    
+    if Path(new_saved_filename).is_file():
+        pass
+    else:
+        params = {'stars':'ParticleIDs,Coordinates,GFM_StellarFormationTime,GFM_InitialMass,GFM_Metallicity,BirthPos,BirthVel,GFM_StellarPhotometrics,Masses'}
+        print('Downloading ' + url)
+        saved_filename = get(url + "/cutout.hdf5",params) # get and save HDF5 cutout file
+        os.rename(saved_filename, new_saved_filename)
+        
+    return sub, new_saved_filename
 
 
 def get_stellar_assembly_data(id, redshift=2, populate_dict=False):
