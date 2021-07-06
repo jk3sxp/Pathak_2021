@@ -169,7 +169,7 @@ def download_data(id, redshift):
     if Path(new_saved_filename).is_file():
         pass
     else:
-        params = {'stars':'ParticleIDs,Coordinates,GFM_StellarFormationTime,GFM_InitialMass,GFM_Metallicity,BirthPos,BirthVel,GFM_StellarPhotometrics,Masses'}
+        params = None
         print('Downloading ' + url)
         saved_filename = get(url + "/cutout.hdf5",params) # get and save HDF5 cutout file
         os.rename(saved_filename, new_saved_filename)
@@ -516,25 +516,28 @@ def age_profile(id, redshift, n_bins=20, scatter=False):
 
     
     
-def metallicity_profile(id, redshift, n_bins=20, scatter=False):
+def metallicity_profile(id, redshift, n_bins=20, profile='median', weight=None):
     '''
     input params: 
         id: the simulation id of target galaxy: integer (specific to simulation, pre-check) 
-        redshift: redshift of target galaxy: numerical value (default==2, specific to simulation, pre-check at https://www.tng-project.org/data/)  
+        redshift: redshift of target galaxy: numerical value  
         n_bins: number of percentile age bins for constructing age profile, default 20 bins
                 [units: none]
-        scatter: boolean: False returns binned radial age data in arrays, does not return a scatter plot with raw particle data
-                          True returns a scatter plot of raw particle data overlaid with a lineplot of metallicity profile of the target galaxy
+        profile: what kind of profile to calculate (default 'median')
+                    'median': median profile
+                    'mean': average profile
+        weight: option to weight the profile (default None)
+                    'luminosity': weight metallicity by luminosity (V-band)
     preconditions: 
         requires output from get_galaxy_particle_data(id, redshift, populate_dict=True): halo file must exist
     output params: 
-        if plot==False: statistic: array of median stellar metallicity in each age bin
-                            [units: solar metallicity]
-                        radial percentiles: array of radial percentiles
-                            [units: physical kpc]
-                        R_e: half-mass or effective radius of target galaxy
-                            [units: physical kpc]
-        if plot==True: scatter plot with raw particle data overlaid with a lineplot of metallicity profile of the target galaxy
+        metallicity_statistic: array of chosen profile stellar metallicity in each age bin
+            [units: solar metallicity]
+        radial percentiles: array of radial percentiles
+            [units: physical kpc]
+        R: array of radii corresponding to metallicity of each particle
+            [units: physical kpc]
+        metallicity: array of metallicity of each particle
     '''
     stellar_data = get_galaxy_particle_data(id=id , redshift=redshift, populate_dict=True)
     LookbackTime = stellar_data['LookbackTime']
@@ -544,29 +547,96 @@ def metallicity_profile(id, redshift, n_bins=20, scatter=False):
     metallicity = stellar_data['stellar_metallicities']
     R = (dx**2 + dy**2 + dz**2)**(1/2)#units: physical kpc
     
+    # calculate weights for calculation
+    if weight=='luminosity':
+        weight = 10**(-0.4 * stellar_data['v_band']) # v-band magnitude
+    else:
+        weight = np.ones(len(metallicity))
+    
+    # calculate statistic for profile
     radial_percentiles = np.zeros(n_bins + 1) #N+1 for N percentiles 
     for i in range(1, (n_bins+1)):
         radial_percentiles[i] = np.percentile(R, (100/n_bins)*i) 
     R_e = np.nanmedian(R)
-    statistic, bin_edges, bin_number = scipy.stats.binned_statistic(R, metallicity, 'median', bins=radial_percentiles)
-    
-    if scatter==False:
-        return statistic, radial_percentiles[:-1], R_e 
-    else:
-        plt.figure(figsize=(10,7)) # 10 is width, 7 is height
-        plt.scatter(R/R_e, metallicity, s=2, alpha=0.05)#c=np.log10(LookbackTime)
-        plt.plot(np.array(radial_percentiles[1:]/R_e)[4:-4], np.array(statistic)[4:-4], c='black')
-        plt.xlim(1e-2, )
-        plt.ylim(1e-1, )
-        #plt.colorbar(label='Age of Stars (Gyr)')
-        plt.title('Normalized Radial Distance vs Stellar Metallicities (log/log scale) with Binned Metallicity Trend for id='+str(id))
-        plt.xlabel('Normalized Radial Distance (R/$R_e$)')
-        plt.ylabel('Stellar Metallicity($\log_{10}$ $Z_\odot$)')
-        plt.xscale('log')
-        plt.yscale('log')
-        plt.show()
-        return plt.show()
+    if profile=='median':
+        metallicity_statistic, bin_edges, bin_number = scipy.stats.binned_statistic(R, metallicity, 'median', bins=radial_percentiles)
+    elif profile=='mean':
+        product_statistic, bin_edges, bin_number = scipy.stats.binned_statistic(R, metallicity * weight, 'sum', bins=radial_percentiles) # vband metallicity sum
+        weight_statistic, bin_edges, bin_number = scipy.stats.binned_statistic(R, weight, 'sum', bins=radial_percentiles)
+        metallicity_statistic = product_statistic / weight_statistic
 
+    return metallicity_statistic, radial_percentiles[:-1], R, metallicity
+
+
+def metals_profile(id, redshift, num, den, n_bins=20, profile='median', weight=None): 
+    '''
+    input params: 
+        id: the simulation id of target galaxy: integer (specific to simulation, pre-check) 
+        redshift: redshift of target galaxy: numerical value  
+        n_bins: number of percentile age bins for constructing age profile, default 20 bins
+                [units: none]
+        profile: what kind of profile to calculate (default 'median')
+                    'median': median profile
+                    'mean': average profile
+        weight: option to weight the profile (default None)
+                    'luminosity': weight abundance by luminosity (V-band)
+    preconditions: 
+        requires output from get_galaxy_particle_data(id, redshift, populate_dict=True): halo file must exist
+    output params: 
+        statistic: array of chosen profile abundances in each age bin
+            [units: solar metallicity]
+        log_ratio: un-weighted log ratio of abundances to solar abundances [num/den]
+        radial percentiles: array of radial percentiles
+            [units: physical kpc]
+        R: array of radii corresponding to metallicity of each particle
+            [units: physical kpc]
+    '''
+    # get particle data
+    stellar_data = get_galaxy_particle_data(id=id , redshift=redshift, populate_dict=True)
+    dx = stellar_data['relative_x_coordinates']
+    dy = stellar_data['relative_y_coordinates']
+    dz = stellar_data['relative_z_coordinates']
+    metallicity = stellar_data['stellar_metallicities']
+    R = (dx**2 + dy**2 + dz**2)**(1/2)#units: physical kpc
+    
+    metals = ['hydrogen', 'helium', 'carbon', 'nitrogen', 'oxygen', 'neon', 'magnesium', 'silicon', 'iron']
+    
+    # get metal abundance ratio
+    rawdata_filename = os.path.join('redshift_'+str(redshift)+'_data', 'cutout_'+str(id)+'_redshift_'+str(redshift)+'_rawdata.hdf5')    
+    with h5py.File(rawdata_filename, 'r') as f:
+        starFormationTime = f['PartType4']['GFM_StellarFormationTime'][:]
+        num_metal = f['PartType4']['GFM_Metals'][:,metals.index(num)]
+        den_metal = f['PartType4']['GFM_Metals'][:,metals.index(den)]
+        num_metal = num_metal[starFormationTime>0] # bc R above is calculated using this filter
+        den_metal = den_metal[starFormationTime>0]
+    ratio = num_metal / den_metal
+    
+    # solar abundance ratios (from http://hyperphysics.phy-astr.gsu.edu/hbase/Tables/suncomp.html)
+    solar_abundance = [71.0, 27.1, 0.40, 0.096, 0.97, 0.058, 0.076, 0.099, 0.14]
+    solar_ratio = solar_abundance[metals.index(num)] / solar_abundance[metals.index(den)]
+    
+    big_ratio = ratio / solar_ratio
+    log_ratio = np.log10(big_ratio) # un-weighted
+        
+    # calculate weights
+    if weight=='luminosity':
+        weight = 10**(-0.4 * stellar_data['v_band']) # v-band magnitude
+    else:
+        weight = np.ones(len(metallicity))
+        
+    # calculate statistic for profile
+    radial_percentiles = np.zeros(n_bins + 1) #N+1 for N percentiles 
+    for i in range(1, (n_bins+1)):
+        radial_percentiles[i] = np.percentile(R, (100/n_bins)*i)
+    if profile=='median':
+        statistic, bin_edges, bin_number = scipy.stats.binned_statistic(R, log_ratio, 'median', bins=radial_percentiles)
+    elif profile=='mean':
+        product_statistic, bin_edges, bin_number = scipy.stats.binned_statistic(R, big_ratio * weight, 'sum', bins=radial_percentiles) # vband metallicity sum
+        weight_statistic, bin_edges, bin_number = scipy.stats.binned_statistic(R, weight, 'sum', bins=radial_percentiles)
+        statistic = np.log10(product_statistic / weight_statistic)
+    
+    return statistic, log_ratio, radial_percentiles[:-1], R
+        
 
 
 def max_merger_ratio(id, redshift=2, scale=30):
