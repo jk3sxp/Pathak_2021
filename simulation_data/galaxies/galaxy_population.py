@@ -7,7 +7,7 @@ import requests
 #import get()
 from simulation_data import get
 
-from .galaxy import timeaverage_stellar_formation_rate, median_stellar_age, total_stellar_mass, halfmass_rad_stars, halflight_rad_stars, max_merger_ratio
+from .galaxy import timeaverage_stellar_formation_rate, median_stellar_age, total_stellar_mass, halfmass_rad_stars, halflight_rad_stars, max_merger_ratio, avg_particular_abundance, avg_abundance
 
 class GalaxyPopulation():
     
@@ -43,7 +43,8 @@ class GalaxyPopulation():
             # form the search_query string by hand for once
             search_query = "?mass_stars__gt=" + str(mass_minimum) + "&mass_stars__lt=" + str(mass_maximum)
             url = "http://www.tng-project.org/api/TNG100-1/snapshots/z=" + str(redshift) + "/subhalos/" + search_query
-            subhalos = get(url, {'limit':5000})
+            print(url)
+            subhalos = get(url, {'limit':14000})
             self.mass_min = mass_min
             self.mass_max = mass_max
             self.redshift = redshift
@@ -102,33 +103,52 @@ class GalaxyPopulation():
                 d2 = f.create_dataset('median_age', data = self.get_median_stellar_age())
                 d3 = f.create_dataset('halfmass_radius', data = self.get_halfmass_rad_stars())
                 d4 = f.create_dataset('total_mass', data = self.get_total_stellar_mass())
-                d5 = f.create_dataset('halflight_radius_U', data = self.get_halflight_rad_stars(band='U', bound=0.5))
-                d6 = f.create_dataset('halflight_radius_V', data = self.get_halflight_rad_stars(band='V', bound=0.5))
-                d7 = f.create_dataset('halflight_radius_I', data = self.get_halflight_rad_stars(band='I', bound=0.5))
+#                 d5 = f.create_dataset('halflight_radius_U', data = self.get_halflight_rad_stars(band='U', bound=0.5))
+#                 d6 = f.create_dataset('halflight_radius_V', data = self.get_halflight_rad_stars(band='V', bound=0.5))
+#                 d7 = f.create_dataset('halflight_radius_I', data = self.get_halflight_rad_stars(band='I', bound=0.5))
                 d8 = f.create_dataset('newbin_current_SFR', data = self.get_timeaverage_stellar_formation_rate(timescale=0, binwidth=0.01))
-                d9 = f.create_dataset('maximum_merger_ratio_30kpc_current_fraction', data = self.get_max_merger_ratio(scale=30))
+#                 #d9 = f.create_dataset('maximum_merger_ratio_30kpc_current_fraction', data = self.get_max_merger_ratio(scale=30))
+                d10 = f.create_dataset('FeH_Re', data = self.get_ratio_abundance(num='iron', den='hydrogen', weight='luminosity'))
+                d11 = f.create_dataset('MgFe_Re', data = self.get_ratio_abundance(num='magnesium', den='iron', weight='luminosity'))
+                d12 = f.create_dataset('MgH_Re', data = self.get_ratio_abundance(num='magnesium', den='hydrogen', weight='luminosity'))
+                d13 = f.create_dataset('FeH_1kpc', data = self.get_ratio_abundance(num='iron', den='hydrogen', weight='luminosity', radius=1.0))
+                d14 = f.create_dataset('MgFe_1kpc', data = self.get_ratio_abundance(num='magnesium', den='iron', weight='luminosity', radius=1.0))
+                d15 = f.create_dataset('MgH_1kpc', data = self.get_ratio_abundance(num='magnesium', den='hydrogen', weight='luminosity', radius=1.0))
                 
         with h5py.File('galaxy_population_data_'+str(self.redshift)+'.hdf5', 'r') as f:
             ids = f['ids'][:]
+            print(len(ids))
             median_age = f['median_age'][:]
             halfmass_radius = f['halfmass_radius'][:]
             total_mass = f['total_mass'][:]
-            halflight_radius_U = f['halflight_radius_U'][:]
-            halflight_radius_V = f['halflight_radius_V'][:]
-            halflight_radius_I = f['halflight_radius_I'][:]
+#             halflight_radius_U = f['halflight_radius_U'][:]
+#             halflight_radius_V = f['halflight_radius_V'][:]
+#             halflight_radius_I = f['halflight_radius_I'][:]
             newbin_current_SFR = f['newbin_current_SFR'][:]
-            maximum_merger_ratio_30kpc_current_fraction = f['maximum_merger_ratio_30kpc_current_fraction'][:]
+            #maximum_merger_ratio_30kpc_current_fraction = f['maximum_merger_ratio_30kpc_current_fraction'][:]
+            FeH_Re = f['FeH_Re'][:]
+            MgFe_Re = f['MgFe_Re'][:]
+            MgH_Re = f['MgH_Re'][:]
+            FeH_1kpc = f['FeH_1kpc'][:]
+            MgFe_1kpc = f['MgFe_1kpc'][:]
+            MgH_1kpc = f['MgH_1kpc'][:]
 
         galaxy_population_data = {
                                     'ids': ids,
                                     'median_age': median_age,
                                     'halfmass_radius': halfmass_radius,
                                     'total_mass': total_mass,
-                                    'halflight_radius_U': halflight_radius_U,
-                                    'halflight_radius_V': halflight_radius_V,
-                                    'halflight_radius_I': halflight_radius_I,
+#                                     'halflight_radius_U': halflight_radius_U,
+#                                     'halflight_radius_V': halflight_radius_V,
+#                                     'halflight_radius_I': halflight_radius_I,
                                     'newbin_current_SFR': newbin_current_SFR,
-                                    'maximum_merger_ratio_30kpc_current_fraction': maximum_merger_ratio_30kpc_current_fraction,
+#                                     'maximum_merger_ratio_30kpc_current_fraction': maximum_merger_ratio_30kpc_current_fraction,
+                                    'FeH_Re': FeH_Re,
+                                    'MgFe_Re': MgFe_Re,
+                                    'MgH_Re': MgH_Re,
+                                    'FeH_1kpc': FeH_1kpc,
+                                    'MgFe_1kpc': MgFe_1kpc,
+                                    'MgH_1kpc': MgH_1kpc,
                                  }
         return galaxy_population_data
 
@@ -279,6 +299,61 @@ class GalaxyPopulation():
         else:
             return self.calc_total_stellar_mass()
         
+        
+    def calc_metal_abundance(self, metal, weight, radius=None):
+        ids = self.ids
+        abundance = np.zeros(len(ids))
+        for i, id in enumerate(ids):
+            abundance[i] = avg_particular_abundance(id=id, redshift=self.redshift, metal=metal, weight=weight, radius=radius)
+        if radius == None:
+            np.savetxt('z='+ str(self.redshift) +'_'+metal, abundance)
+            abundance = np.loadtxt('z='+ str(self.redshift) +'_'+metal, dtype=float)
+        else:
+            np.savetxt('z='+ str(self.redshift) +'_'+metal+'_'+str(radius)+'kpc', abundance)
+            abundance = np.loadtxt('z='+ str(self.redshift) +'_'+metal+'_'+str(radius)+'kpc', dtype=float)
+        return abundance
+    
+    
+    def get_metal_abundance(self, metal, weight, radius=None):
+        import pathlib
+        if radius == None:
+            filename = 'z='+ str(self.redshift) +'_'+metal
+        else:
+            filename = 'z='+ str(self.redshift) +'_'+metal+'_'+str(radius)+'kpc'
+        file = pathlib.Path(filename)
+        if file.exists ():
+            abundance = np.loadtxt(filename, dtype=float) 
+            return abundance
+        else:
+            return self.calc_metal_abundance(metal, weight, radius)
+        
+        
+    def calc_ratio_abundance(self, num, den, weight, radius=None):
+        ids = self.ids
+        abundance = np.zeros(len(ids))
+        for i, id in enumerate(ids):
+            abundance[i] = avg_abundance(id=id, redshift=self.redshift, num=num, den=den, weight=weight, radius=radius)
+        if radius == None:
+            np.savetxt('z='+ str(self.redshift) +'_'+num+den, abundance)
+            abundance = np.loadtxt('z='+ str(self.redshift) +'_'+num+den, dtype=float)
+        else:
+            np.savetxt('z='+ str(self.redshift) +'_'+num+den+'_'+str(radius)+'kpc', abundance)
+            abundance = np.loadtxt('z='+ str(self.redshift) +'_'+num+den+'_'+str(radius)+'kpc', dtype=float)
+        return abundance
+    
+    
+    def get_ratio_abundance(self, num, den, weight, radius=None):
+        import pathlib
+        if radius == None:
+            filename = 'z='+ str(self.redshift) +'_'+num+den
+        else:
+            filename = 'z='+ str(self.redshift) +'_'+num+den+'_'+str(radius)+'kpc'
+        file = pathlib.Path(filename)
+        if file.exists ():
+            abundance = np.loadtxt(filename, dtype=float) 
+            return abundance
+        else:
+            return self.calc_ratio_abundance(num, den, weight, radius)
         
         
         #half mass radius

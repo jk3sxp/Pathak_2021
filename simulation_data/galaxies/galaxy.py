@@ -59,6 +59,10 @@ def get_galaxy_particle_data(id, redshift, populate_dict=False):
                                                 [units: AB magnitudes]
                                         'ParticleIDs': ids of star particles in simulation
                                                 [units: none]
+                                        'halfmassrad_stars': effective radius enclosing half the stellar mass
+                                                [units: physical kpc]
+                                        'mass_stars': total stellar mass
+                                                [units: log solar mass]
     '''
     stellar_data = {}
     
@@ -109,6 +113,9 @@ def get_galaxy_particle_data(id, redshift, populate_dict=False):
         LookbackTime = Gyr_redshift - starFormationTime #units:Gyr
         starMetallicity = starMetallicity / 0.0127 #units: solar metallicity
         
+        halfmassrad_stars = sub['halfmassrad_stars']*a/h
+        mass_stars = np.log10(sub['mass_stars']*1e10/h)
+        
         #create new file with same filename
         new_saved_filename = os.path.join('redshift_'+str(redshift)+'_data', 'cutout_'+str(id)+'_redshift_'+str(redshift)+'_data.hdf5')
         #new_saved_filename = 'cutout_'+str(id)+'_redshift_'+str(redshift)+'_data.hdf5'
@@ -125,8 +132,24 @@ def get_galaxy_particle_data(id, redshift, populate_dict=False):
             d9 = h5f.create_dataset('i_band', data = I) #Vega magnitudes
             d10 = h5f.create_dataset('ParticleIDs', data = ParticleIDs) 
             d11 = h5f.create_dataset('stellar_masses', data = starMass)
+            d12 = h5f.create_dataset('halfmassrad_stars', data = halfmassrad_stars)
+            d13 = h5f.create_dataset('mass_stars', data = mass_stars)
         #close file
         #h5f.close()
+    
+#     url = "http://www.tng-project.org/api/TNG100-1/snapshots/z=" + str(redshift) + "/subhalos/" + str(id)
+#     sub = get(url)
+#     scale_factor = a = 1.0 / (1 + redshift)
+#     halfmassrad_stars = sub['halfmassrad_stars']*a/h
+#     mass_stars = np.log10(sub['mass_stars']*1e10/h)
+    
+#     with h5py.File(new_saved_filename, 'a') as f:
+#         del f['halfmassrad_stars']
+#         del f['mass_stars']
+#         d12 = f.create_dataset('halfmassrad_stars', data = [halfmassrad_stars])
+#         d13 = f.create_dataset('mass_stars', data = [mass_stars])
+#         f['halfmassrad_stars'] = sub['halfmassrad_stars']*a/h
+#         f['mass_stars'] = np.log10(sub['mass_stars']*1e10/h)
     
     with h5py.File(new_saved_filename, 'r') as h5f_open:
         dx = h5f_open['relative_x_coordinates'][:]
@@ -140,6 +163,8 @@ def get_galaxy_particle_data(id, redshift, populate_dict=False):
         I = h5f_open['i_band'][:]
         ParticleIDs = h5f_open['ParticleIDs'][:]
         stellar_masses = h5f_open['stellar_masses'][:]
+        halfmassrad_stars = h5f_open['halfmassrad_stars'][()]
+        mass_stars = h5f_open['mass_stars'][()]
         
     stellar_data = {
                     'relative_x_coordinates' : dx, #units: physical kpc
@@ -152,7 +177,9 @@ def get_galaxy_particle_data(id, redshift, populate_dict=False):
                     'v_band' : V, #units: Vega magnitudes
                     'i_band' : I, #units: AB magnitudes
                     'ParticleIDs' : ParticleIDs, #units: none
-                    'stellar_masses': stellar_masses, #units: solar mass
+                    'stellar_masses' : stellar_masses, #units: solar mass
+                    'halfmassrad_stars' : halfmassrad_stars, #units: physical kpc
+                    'mass_stars' : mass_stars #units: log solar mass
                     }
                    
     if populate_dict==False:
@@ -227,7 +254,7 @@ def get_stellar_assembly_data(id, redshift=2, populate_dict=False):
 
 
 
-def get_star_formation_history(id, redshift, plot=False, binwidth=0.05): 
+def get_star_formation_history(id, redshift, plot=False, binwidth=0.05, timerange=3.2): 
     '''
     input params: 
         id: the simulation id of target galaxy: integer (specific to simulation, pre-check) 
@@ -250,7 +277,7 @@ def get_star_formation_history(id, redshift, plot=False, binwidth=0.05):
     HistWeights = stellar_data['stellar_initial_masses']
     #HistWeights = stellar_data['stellar_initial_masses']/(binwidth*1e9) #units: logMsol/yr
     LookbackTime = stellar_data['LookbackTime']
-    SFH, BE = np.histogram(LookbackTime, bins=np.arange(0, 3.2, binwidth), weights=HistWeights, density = True)
+    SFH, BE = np.histogram(LookbackTime, bins=np.arange(0, timerange, binwidth), weights=HistWeights, density = True)
     #SFH, BE = np.histogram(LookbackTime, bins=np.arange(0, max(LookbackTime), binwidth), weights=HistWeights)
     bincenters = np.asarray([(BE[i]+BE[i+1])/2. for i in range(len(BE)-1)])
     if plot==False:
@@ -372,10 +399,9 @@ def halfmass_rad_stars(id, redshift):
         half-mass radius: half-mass radius of target galaxy read from available halo properties 
                 [units: physical kpc] 
     '''
-    scale_factor = a = 1.0 / (1 + redshift)
-    url = "http://www.tng-project.org/api/TNG100-1/snapshots/z=" + str(redshift) + "/subhalos/" + str(id)
-    sub = get(url) # get json response of subhalo properties
-    return sub['halfmassrad_stars']*a/h #units: pkpc
+    stellar_data = get_galaxy_particle_data(id=id , redshift=redshift, populate_dict=True)
+    halfmassrad_stars = stellar_data['halfmassrad_stars']    
+    return halfmassrad_stars #units: pkpc
 
 
 
@@ -495,7 +521,7 @@ def age_profile(id, redshift, n_bins=20, scatter=False):
     statistic, bin_edges, bin_number = scipy.stats.binned_statistic(R, LookbackTime, 'median', bins=radial_percentiles)
     
     if scatter==False:
-        return statistic, radial_percentiles[:-1], R_e#, R/R_e, LookbackTime, np.log10(metallicity)
+        return statistic, radial_percentiles[:-1]#, R_e#, R/R_e, LookbackTime, np.log10(metallicity)
         
     else:
         plt.figure(figsize=(10,7)) # 10 is width, 7 is height
@@ -512,11 +538,139 @@ def age_profile(id, redshift, n_bins=20, scatter=False):
         plt.yscale('log')
         plt.show()
         return plt.show()
+    
 
+def potential(id, redshift, n_bins=None):
+    a = 1.0 / (1 + redshift) # scale factor
+    
+    # get stellar gravitational potential
+    rawdata_filename = os.path.join('redshift_'+str(redshift)+'_data', 'cutout_'+str(id)+'_redshift_'+str(redshift)+'_rawdata.hdf5')    
+    with h5py.File(rawdata_filename, 'r') as f:
+        starFormationTime = f['PartType4']['GFM_StellarFormationTime'][:]
+        grav = f['PartType4']['Potential'][:] * a #units: km/s^2
+        grav = np.log10(np.abs(grav[starFormationTime>0]))
+        
+    if n_bins == None:
+        return grav
+    else:
+        # get particle data
+        stellar_data = get_galaxy_particle_data(id=id , redshift=redshift, populate_dict=True)
+        dx = stellar_data['relative_x_coordinates']
+        dy = stellar_data['relative_y_coordinates']
+        dz = stellar_data['relative_z_coordinates']
+        R = (dx**2 + dy**2 + dz**2)**(1/2)#units: physical kpc
+        
+        # calculate statistic for profile
+        radial_percentiles = np.zeros(n_bins + 1) #N+1 for N percentiles 
+        for i in range(1, (n_bins+1)):
+            radial_percentiles[i] = np.percentile(R, (100/n_bins)*i)
+        
+        statistic, bin_edges, bin_number = scipy.stats.binned_statistic(R, grav, 'median', bins=radial_percentiles)
+        
+        return statistic, radial_percentiles[:-1], R, grav
+    
+
+def avg_abundance(id, redshift, num, den, weight=None, radius=None):
+    # get particle data
+    stellar_data = get_galaxy_particle_data(id=id , redshift=redshift, populate_dict=True)
+    dx = stellar_data['relative_x_coordinates']
+    dy = stellar_data['relative_y_coordinates']
+    dz = stellar_data['relative_z_coordinates']
+    #metallicity = stellar_data['stellar_metallicities']
+    R = (dx**2 + dy**2 + dz**2)**(1/2)#units: physical kpc
+    
+    # get radius to average within
+    if radius == None:
+        # effective radius
+        rad_limit = stellar_data['halfmassrad_stars'] #units: physical kpc
+    else:
+        # user-input radius
+        rad_limit = radius #units: physical kpc
+        
+    w = np.where((R <= rad_limit)) # radii within effective radius
+    
+    metals = ['hydrogen', 'helium', 'carbon', 'nitrogen', 'oxygen', 'neon', 'magnesium', 'silicon', 'iron']
+    
+    # get metal abundance ratio
+    rawdata_filename = os.path.join('redshift_'+str(redshift)+'_data', 'cutout_'+str(id)+'_redshift_'+str(redshift)+'_rawdata.hdf5')    
+    with h5py.File(rawdata_filename, 'r') as f:
+        starFormationTime = f['PartType4']['GFM_StellarFormationTime'][:]
+        num_metal = f['PartType4']['GFM_Metals'][:,metals.index(num)]
+        den_metal = f['PartType4']['GFM_Metals'][:,metals.index(den)]
+        num_metal = num_metal[starFormationTime>0] # bc R above is calculated using this filter
+        den_metal = den_metal[starFormationTime>0]
+    ratio = num_metal / den_metal
+    ratio = ratio[w]
+    
+    # solar abundance ratios (from http://hyperphysics.phy-astr.gsu.edu/hbase/Tables/suncomp.html)
+    solar_abundance = [71.0, 27.1, 0.40, 0.096, 0.97, 0.058, 0.076, 0.099, 0.14]
+    solar_ratio = solar_abundance[metals.index(num)] / solar_abundance[metals.index(den)]
+    
+    big_ratio = ratio / solar_ratio
+    #log_ratio = np.log10(big_ratio) # un-weighted
+        
+    # calculate weights
+    if weight=='luminosity':
+        weight = 10**(-0.4 * stellar_data['v_band']) # v-band magnitude (ignoring zero point calibration factor)
+        weight = weight[w]
+    else:
+        pass
+        
+    abundance = np.log10(np.average(big_ratio, weights=weight))
+    
+    return abundance
+
+
+def avg_particular_abundance(id, redshift, metal, weight=None, radius=None):
+    # get particle data
+    stellar_data = get_galaxy_particle_data(id=id , redshift=redshift, populate_dict=True)
+    dx = stellar_data['relative_x_coordinates']
+    dy = stellar_data['relative_y_coordinates']
+    dz = stellar_data['relative_z_coordinates']
+    #metallicity = stellar_data['stellar_metallicities']
+    R = (dx**2 + dy**2 + dz**2)**(1/2)#units: physical kpc
+    
+    # get radius to average within
+    if radius == None:
+        # effective radius
+        rad_limit = stellar_data['halfmassrad_stars'] #units: physical kpc
+    else:
+        # user-input radius
+        rad_limit = radius #units: physical kpc
+        
+    w = np.where((R <= rad_limit)) # radii within effective radius
+    
+    metals = ['hydrogen', 'helium', 'carbon', 'nitrogen', 'oxygen', 'neon', 'magnesium', 'silicon', 'iron']
+    
+    # get metal abundance ratio
+    rawdata_filename = os.path.join('redshift_'+str(redshift)+'_data', 'cutout_'+str(id)+'_redshift_'+str(redshift)+'_rawdata.hdf5')    
+    with h5py.File(rawdata_filename, 'r') as f:
+        starFormationTime = f['PartType4']['GFM_StellarFormationTime'][:]
+        num_metal = f['PartType4']['GFM_Metals'][:,metals.index(metal)]
+        num_metal = num_metal[starFormationTime>0] # bc R above is calculated using this filter
+    num_metal = num_metal[w]
+    
+    # solar abundance ratios (from http://hyperphysics.phy-astr.gsu.edu/hbase/Tables/suncomp.html)
+    solar_abundance = [71.0, 27.1, 0.40, 0.096, 0.97, 0.058, 0.076, 0.099, 0.14]
+    solar_metal = solar_abundance[metals.index(metal)]
+    
+    big_ratio = num_metal / solar_metal
+    #log_ratio = np.log10(big_ratio) # un-weighted
+        
+    # calculate weights
+    if weight=='luminosity':
+        weight = 10**(-0.4 * stellar_data['v_band']) # v-band magnitude (ignoring zero point calibration factor)
+        weight = weight[w]
+    else:
+        pass
+        
+    abundance = np.average(big_ratio, weights=weight)
+    
+    return abundance
 
     
     
-def metallicity_profile(id, redshift, n_bins=20, profile='median', weight=None):
+def metallicity_profile(id, redshift, n_bins=20, profile='median', weight=None, axis='distance'):
     '''
     input params: 
         id: the simulation id of target galaxy: integer (specific to simulation, pre-check) 
@@ -541,11 +695,7 @@ def metallicity_profile(id, redshift, n_bins=20, profile='median', weight=None):
     '''
     stellar_data = get_galaxy_particle_data(id=id , redshift=redshift, populate_dict=True)
     LookbackTime = stellar_data['LookbackTime']
-    dx = stellar_data['relative_x_coordinates']
-    dy = stellar_data['relative_y_coordinates']
-    dz = stellar_data['relative_z_coordinates']
     metallicity = stellar_data['stellar_metallicities']
-    R = (dx**2 + dy**2 + dz**2)**(1/2)#units: physical kpc
     
     # calculate weights for calculation
     if weight=='luminosity':
@@ -553,22 +703,42 @@ def metallicity_profile(id, redshift, n_bins=20, profile='median', weight=None):
     else:
         weight = np.ones(len(metallicity))
     
-    # calculate statistic for profile
-    radial_percentiles = np.zeros(n_bins + 1) #N+1 for N percentiles 
+    # get x-axis for statistic calculation
+    if axis == 'distance':
+        dx = stellar_data['relative_x_coordinates']
+        dy = stellar_data['relative_y_coordinates']
+        dz = stellar_data['relative_z_coordinates']
+        R = (dx**2 + dy**2 + dz**2)**(1/2)#units: physical kpc
+        xaxis = R
+    elif axis == 'potential':
+        grav = potential(id, redshift, n_bins=None)
+        xaxis = grav
+    elif axis == 'age':
+        xaxis = LookbackTime
+        
+#     dx = stellar_data['relative_x_coordinates']
+#     dy = stellar_data['relative_y_coordinates']
+#     dz = stellar_data['relative_z_coordinates']
+#     R = (dx**2 + dy**2 + dz**2)**(1/2)#units: physical kpc
+
+    # calculate statistic
+    percentiles = np.zeros(n_bins + 1) #N+1 for N percentiles
     for i in range(1, (n_bins+1)):
-        radial_percentiles[i] = np.percentile(R, (100/n_bins)*i) 
-    R_e = np.nanmedian(R)
+        percentiles[i] = np.percentile(xaxis, (100/n_bins)*i) 
     if profile=='median':
-        metallicity_statistic, bin_edges, bin_number = scipy.stats.binned_statistic(R, metallicity, 'median', bins=radial_percentiles)
+        metallicity_statistic, bin_edges, bin_number = scipy.stats.binned_statistic(xaxis, metallicity, 'median', bins=percentiles)
+        #metallicity_statistic, bin_edges, bin_number = scipy.stats.binned_statistic(metallicity, xaxis, 'median', bins=percentiles)
+        #metallicity_statistic, bin_edges, bin_number = scipy.stats.binned_statistic(xaxis, metallicity, 'median', bins=n_bins)
     elif profile=='mean':
-        product_statistic, bin_edges, bin_number = scipy.stats.binned_statistic(R, metallicity * weight, 'sum', bins=radial_percentiles) # vband metallicity sum
-        weight_statistic, bin_edges, bin_number = scipy.stats.binned_statistic(R, weight, 'sum', bins=radial_percentiles)
+        product_statistic, bin_edges, bin_number = scipy.stats.binned_statistic(xaxis, metallicity * weight, 'sum', bins=percentiles) # vband metallicity sum
+        weight_statistic, bin_edges, bin_number = scipy.stats.binned_statistic(xaxis, weight, 'sum', bins=percentiles)
         metallicity_statistic = product_statistic / weight_statistic
 
-    return metallicity_statistic, radial_percentiles[:-1], R, metallicity
+    return metallicity_statistic, percentiles[:-1], xaxis, metallicity#, R
+    #return metallicity_statistic, (bin_edges[1:]+bin_edges[:-1])/2, xaxis, metallicity
 
 
-def metals_profile(id, redshift, num, den, n_bins=20, profile='median', weight=None): 
+def metals_profile(id, redshift, num, den, n_bins=20, profile='median', weight=None, axis='distance'): 
     '''
     input params: 
         id: the simulation id of target galaxy: integer (specific to simulation, pre-check) 
@@ -593,11 +763,8 @@ def metals_profile(id, redshift, num, den, n_bins=20, profile='median', weight=N
     '''
     # get particle data
     stellar_data = get_galaxy_particle_data(id=id , redshift=redshift, populate_dict=True)
-    dx = stellar_data['relative_x_coordinates']
-    dy = stellar_data['relative_y_coordinates']
-    dz = stellar_data['relative_z_coordinates']
     metallicity = stellar_data['stellar_metallicities']
-    R = (dx**2 + dy**2 + dz**2)**(1/2)#units: physical kpc
+    LookbackTime = stellar_data['LookbackTime']
     
     metals = ['hydrogen', 'helium', 'carbon', 'nitrogen', 'oxygen', 'neon', 'magnesium', 'silicon', 'iron']
     
@@ -620,22 +787,41 @@ def metals_profile(id, redshift, num, den, n_bins=20, profile='median', weight=N
         
     # calculate weights
     if weight=='luminosity':
-        weight = 10**(-0.4 * stellar_data['v_band']) # v-band magnitude
+        weight = 10**(-0.4 * stellar_data['v_band']) # v-band magnitude (ignoring zero point calibration factor)
     else:
         weight = np.ones(len(metallicity))
         
+    # get x-axis for statistic calculation
+    if axis == 'distance':
+        dx = stellar_data['relative_x_coordinates']
+        dy = stellar_data['relative_y_coordinates']
+        dz = stellar_data['relative_z_coordinates']
+        R = (dx**2 + dy**2 + dz**2)**(1/2)#units: physical kpc
+        xaxis = R
+    elif axis == 'potential':
+        grav = potential(id, redshift, n_bins=None)
+        xaxis = grav
+    elif axis == 'age':
+        xaxis = LookbackTime
+        
+#     dx = stellar_data['relative_x_coordinates']
+#     dy = stellar_data['relative_y_coordinates']
+#     dz = stellar_data['relative_z_coordinates']
+#     R = (dx**2 + dy**2 + dz**2)**(1/2)#units: physical kpc
+        
     # calculate statistic for profile
-    radial_percentiles = np.zeros(n_bins + 1) #N+1 for N percentiles 
+    percentiles = np.zeros(n_bins + 1) #N+1 for N percentiles 
     for i in range(1, (n_bins+1)):
-        radial_percentiles[i] = np.percentile(R, (100/n_bins)*i)
+        percentiles[i] = np.percentile(xaxis, (100/n_bins)*i)
+        
     if profile=='median':
-        statistic, bin_edges, bin_number = scipy.stats.binned_statistic(R, log_ratio, 'median', bins=radial_percentiles)
+        statistic, bin_edges, bin_number = scipy.stats.binned_statistic(xaxis, log_ratio, 'median', bins=percentiles)
     elif profile=='mean':
-        product_statistic, bin_edges, bin_number = scipy.stats.binned_statistic(R, big_ratio * weight, 'sum', bins=radial_percentiles) # vband metallicity sum
-        weight_statistic, bin_edges, bin_number = scipy.stats.binned_statistic(R, weight, 'sum', bins=radial_percentiles)
+        product_statistic, bin_edges, bin_number = scipy.stats.binned_statistic(xaxis, big_ratio * weight, 'sum', bins=percentiles) # vband metallicity sum
+        weight_statistic, bin_edges, bin_number = scipy.stats.binned_statistic(xaxis, weight, 'sum', bins=percentiles)
         statistic = np.log10(product_statistic / weight_statistic)
     
-    return statistic, log_ratio, radial_percentiles[:-1], R
+    return statistic, log_ratio, percentiles[:-1], xaxis#, R        
         
 
 
