@@ -754,7 +754,7 @@ def metallicity_profile(id, redshift, n_bins=20, profile='median', weight=None, 
     #return metallicity_statistic, (bin_edges[1:]+bin_edges[:-1])/2, xaxis, metallicity
 
 
-def metals_profile(id, redshift, num, den, n_bins=20, profile='median', weight=None, axis='distance'): 
+def metals_profile(id, redshift, num, den, n_bins=20, profile='median', weight=None, axis='distance', only_particles=False): 
     '''
     input params: 
         id: the simulation id of target galaxy: integer (specific to simulation, pre-check) 
@@ -826,6 +826,11 @@ def metals_profile(id, redshift, num, den, n_bins=20, profile='median', weight=N
         R = (dx**2 + dy**2 + dz**2)**(1/2)#units: physical kpc
         R_e = stellar_data['halfmassrad_stars']
         xaxis = R/R_e
+        
+    if only_particles:
+        return log_ratio, xaxis
+    else:
+        pass
         
 #     dx = stellar_data['relative_x_coordinates']
 #     dy = stellar_data['relative_y_coordinates']
@@ -983,6 +988,76 @@ def metals_density_profile(id, redshift, num, den, n_bins=20):
     statistic, bin_edges, bin_number = scipy.stats.binned_statistic(R, log_ratio, 'median', bins=percentiles)
     
     return statistic, log_ratio, density, R, percentiles[:-1]
+
+def histmetals_density_profile(id, redshift, num, den, n_bins=20, young=None): 
+    '''
+    '''
+    # get particle data
+    stellar_data = get_galaxy_particle_data(id=id , redshift=redshift, populate_dict=True)
+    metallicity = stellar_data['stellar_metallicities']
+    LookbackTime = stellar_data['LookbackTime']
+    mass = stellar_data['stellar_masses']
+    dx = stellar_data['relative_x_coordinates']
+    dy = stellar_data['relative_y_coordinates']
+    dz = stellar_data['relative_z_coordinates']
+    R = (dx**2 + dy**2 + dz**2)**(1/2)#units: physical kpc
+    
+    metals = ['hydrogen', 'helium', 'carbon', 'nitrogen', 'oxygen', 'neon', 'magnesium', 'silicon', 'iron']
+    
+    # get metal abundance ratio and other stuff
+    rawdata_filename = os.path.join('redshift_'+str(redshift)+'_data', 'cutout_'+str(id)+'_redshift_'+str(redshift)+'_rawdata.hdf5')    
+    with h5py.File(rawdata_filename, 'r') as f:
+        starFormationTime = f['PartType4']['GFM_StellarFormationTime'][:]
+        if young: # only consider stars within last 100 million years (0.1 Gyr)
+            sub, saved_filename = download_data(id, redshift)
+            formationTime = young[0]
+            formationGyr = young[1]
+#             print(formationTime, formationGyr)
+#             starFormationRedshift = 1/starFormationTime - 1 #units:redshift
+#             starFormationGyr = cosmo.age(starFormationRedshift).value #units:Gyr
+            Gyr_redshift = cosmo.age(redshift).value #units:Gyr
+#             cutoff = Gyr_redshift - 0.1 #units:Gyr
+            starFormationGyr = np.interp(starFormationTime, formationTime, formationGyr)
+            age = Gyr_redshift - starFormationGyr
+#             print(np.min(age))
+            
+            flag = (starFormationTime>0)&(age<0.1)#&(age<=Gyr_redshift) # look at stars born before cutoff
+            
+            mass = f['PartType4']['Masses'][flag]*1e10/h
+            dx = f['PartType4']['Coordinates'][:,0] - sub['pos_x']
+            dy = f['PartType4']['Coordinates'][:,1] - sub['pos_y']
+            dz = f['PartType4']['Coordinates'][:,2] - sub['pos_z']
+            dx = dx[flag]
+            dy = dy[flag]
+            dz = dz[flag]
+            R = (dx**2 + dy**2 + dz**2)**(1/2)
+        else:
+            flag = (0<starFormationTime)
+        num_metal = f['PartType4']['GFM_Metals'][:,metals.index(num)]
+        den_metal = f['PartType4']['GFM_Metals'][:,metals.index(den)]
+        num_metal = num_metal[flag] # bc R above is calculated using this filter
+        den_metal = den_metal[flag]
+        stellarHsml = f['PartType4']['StellarHsml'][flag] # ckpc/h
+    ratio = num_metal / den_metal
+    
+    # solar abundance ratios (from http://hyperphysics.phy-astr.gsu.edu/hbase/Tables/suncomp.html)
+    solar_abundance = [71.0, 27.1, 0.40, 0.096, 0.97, 0.058, 0.076, 0.099, 0.14]
+    solar_ratio = solar_abundance[metals.index(num)] / solar_abundance[metals.index(den)]
+    
+    big_ratio = ratio / solar_ratio
+    log_ratio = np.log10(big_ratio) # un-weighted
+    
+    # calculate statistic for profile
+#     percentiles = np.zeros(n_bins + 1) #N+1 for N percentiles 
+#     for i in range(1, (n_bins+1)):
+#         percentiles[i] = np.percentile(R, (100/n_bins)*i)
+        
+    # density
+    scale_factor = a = 1.0 / (1 + redshift)
+    stellarHsml = stellarHsml*a/h # physical kpc
+    density = (mass*32) / (4/3*np.pi*stellarHsml**3)
+
+    return log_ratio, density, R
     
     
 def gasmetals_profile(id, redshift, num, den, n_bins=20, profile='median', weight=None, axis='distance'): 

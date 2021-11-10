@@ -1,7 +1,7 @@
 import requests
 
 #insert personal API key to download simulation data using get()
-API = "ThisIsMyAPIKeyForIllustrisTNG"
+API = "552df1d694cafaab593b6db147645204"
 #defined get()
 def get(path, params=None):
     '''
