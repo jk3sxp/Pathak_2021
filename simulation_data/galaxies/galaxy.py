@@ -1010,6 +1010,7 @@ def histmetals_density_profile(id, redshift, num, den, n_bins=20, young=None):
     with h5py.File(rawdata_filename, 'r') as f:
         starFormationTime = f['PartType4']['GFM_StellarFormationTime'][:]
         if young: # only consider stars within last 100 million years (0.1 Gyr)
+            scale_factor = a = 1.0 / (1 + redshift)
             sub, saved_filename = download_data(id, redshift)
             formationTime = young[0]
             formationGyr = young[1]
@@ -1031,6 +1032,9 @@ def histmetals_density_profile(id, redshift, num, den, n_bins=20, young=None):
             dx = dx[flag]
             dy = dy[flag]
             dz = dz[flag]
+            dx = dx*a/h
+            dy = dy*a/h
+            dz = dz*a/h
             R = (dx**2 + dy**2 + dz**2)**(1/2)
         else:
             flag = (0<starFormationTime)
@@ -1057,7 +1061,7 @@ def histmetals_density_profile(id, redshift, num, den, n_bins=20, young=None):
 #     scale_factor = a = 1.0 / (1 + redshift)
 #     stellarHsml = stellarHsml*a/h # physical kpc
 #     density = (mass*32) / (4/3*np.pi*stellarHsml**3)
-    dens = stellar_density(mass, dx, dy, dz)
+    dens = stellar_density(id, redshift, dx, dy, dz)
 
     return log_ratio, dens, R
 
@@ -1130,21 +1134,46 @@ def gasmetals_density_profile(id, redshift, num, den, n_bins=20, young=None):
 #         percentiles[i] = np.percentile(R, (100/n_bins)*i)
         
     # density
-#     scale_factor = a = 1.0 / (1 + redshift)
-#     stellarHsml = stellarHsml*a/h # physical kpc
-#     density = (mass*32) / (4/3*np.pi*stellarHsml**3)
-    gas_tree = spatial.KDTree
-    tree = spatial.KDTree(list(zip(dx, dy, dz)))
-    dd, ii = tree.query(list(zip(dx_gas, dy_gas, dz_gas)))
-    mass_new = np.take(mass, ii, axis=0)
-    dx_new = np.take(dx, ii, axis=0)
-    dy_new = np.take(dy, ii, axis=0)
-    dz_new = np.take(dz, ii, axis=0)
-    dens = stellar_density(mass_new, dx_new, dy_new, dz_new)
+    dens = stellar_density(id, redshift, dx_gas, dy_gas, dz_gas)
 
     return log_ratio, dens, R
+
+def effective_yield(id, redshift):
+    # stellar particle locations
+#     stellar_data = get_galaxy_particle_data(id=id , redshift=redshift, populate_dict=True)
+#     mass_star = stellar_data['stellar_masses']
+#     dx_star = stellar_data['relative_x_coordinates']
+#     dy_star = stellar_data['relative_y_coordinates']
+#     dz_star = stellar_data['relative_z_coordinates']
+
+    scale_factor = a = 1.0 / (1 + redshift)
     
-def stellar_density(mass, dx, dy, dz, k=32): 
+    # gas particle locations
+    rawdata_filename = os.path.join('redshift_'+str(redshift)+'_data', 'cutout_'+str(id)+'_redshift_'+str(redshift)+'_rawdata.hdf5')    
+    with h5py.File(rawdata_filename, 'r') as f:
+        sub, saved_filename = download_data(id, redshift)
+        dx_gas = f['PartType0']['Coordinates'][:,0] - sub['pos_x']
+        dy_gas = f['PartType0']['Coordinates'][:,1] - sub['pos_y']
+        dz_gas = f['PartType0']['Coordinates'][:,2] - sub['pos_z']
+        rho_gas = f['PartType0']['Density'][:]
+        Z_gas = f['PartType0']['GFM_Metallicity'][:]# / 0.0127 # solar units
+        
+        dx_gas = dx_gas*a/h # physical kpc
+        dy_gas = dy_gas*a/h
+        dz_gas = dz_gas*a/h
+        
+        R_gas = (dx_gas**2 + dy_gas**2 + dz_gas**2)**(1/2)#units: physical kpc
+    
+    # calculate densities
+    rho_star = stellar_density(id, redshift, dx_gas, dy_gas, dz_gas)
+    rho_gas = rho_gas * (1e10/h) / (a/h)**3 # M_sun / kpc^3
+    
+    f_gas = rho_gas / (rho_gas + rho_star) # gas fraction
+    y_eff = Z_gas / np.log(1 / f_gas)
+    
+    return R_gas, f_gas, y_eff, Z_gas
+
+def stellar_density(id, redshift, dx, dy, dz, k=32): 
     '''
     '''
     # get particle data
@@ -1153,8 +1182,13 @@ def stellar_density(mass, dx, dy, dz, k=32):
 #     dx = stellar_data['relative_x_coordinates'] # physical kpc
 #     dy = stellar_data['relative_y_coordinates']
 #     dz = stellar_data['relative_z_coordinates']
+    stellar_data = get_galaxy_particle_data(id=id , redshift=redshift, populate_dict=True)
+    mass = stellar_data['stellar_masses']
+    dx_star = stellar_data['relative_x_coordinates']
+    dy_star = stellar_data['relative_y_coordinates']
+    dz_star = stellar_data['relative_z_coordinates']
     
-    tree = spatial.KDTree(list(zip(dx, dy, dz)))
+    tree = spatial.KDTree(list(zip(dx_star, dy_star, dz_star)))
     dd, ii = tree.query(list(zip(dx, dy, dz)), k=k)
     
     radii = np.amax(dd, 1) # max of the 32 radii per star particle
