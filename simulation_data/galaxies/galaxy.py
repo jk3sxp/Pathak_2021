@@ -421,6 +421,12 @@ def halfmass_rad_stars(id, redshift):
     return halfmassrad_stars #units: pkpc
 
 
+def get_stellar_age(id, redshift):
+    stellar_data = get_galaxy_particle_data(id=id , redshift=redshift, populate_dict=True)
+    age = stellar_data['LookbackTime']
+    return age
+
+
 
 def halflight_rad_stars(id, redshift, band, bound=0.5):
     '''
@@ -634,6 +640,30 @@ def avg_abundance(id, redshift, num, den, weight=None, radius=None):
         pass
         
     abundance = np.log10(np.average(big_ratio, weights=weight))
+    
+    return abundance
+
+
+def avg_gas_abundance(id, redshift, num, den, radius=None):   
+    stellar_data = get_galaxy_particle_data(id=id , redshift=redshift, populate_dict=True)
+
+    # get radius to average within
+    if radius == None:
+        # effective radius
+        rad_limit = stellar_data['halfmassrad_stars'] #units: physical kpc
+    else:
+        # user-input radius
+        rad_limit = radius #units: physical kpc
+    
+    log_ratio, R = gasmetals_radius(id, redshift, num, den, solar_units=True, follow_star=False)
+    
+    if type(log_ratio) == int:
+        return 0
+    else:
+        big_ratio = 10**log_ratio
+        w = np.where((R <= rad_limit)) # radii within effective radius
+        big_ratio = big_ratio[w]
+        abundance = np.log10(np.average(big_ratio))
     
     return abundance
 
@@ -1192,7 +1222,7 @@ def gasmetals_density_profile(id, redshift, num, den, n_bins=20, young=None, den
         
     return log_ratio, dens, R
 
-def gasmetals_only(id, redshift, num, den, solar_units=True): 
+def gasmetals_only(id, redshift, num, den, solar_units=True, follow_star=False): 
     '''
     '''  
     metals = ['hydrogen', 'helium', 'carbon', 'nitrogen', 'oxygen', 'neon', 'magnesium', 'silicon', 'iron']
@@ -1203,9 +1233,12 @@ def gasmetals_only(id, redshift, num, den, solar_units=True):
 #         starFormationTime = f['PartType4']['GFM_StellarFormationTime'][:]
         sub, saved_filename = download_data(id, redshift)
         if 'PartType0' in f:
-#             dx_gas = f['PartType0']['Coordinates'][:,0] - sub['pos_x']
-#             dy_gas = f['PartType0']['Coordinates'][:,1] - sub['pos_y']
-#             dz_gas = f['PartType0']['Coordinates'][:,2] - sub['pos_z']
+            if follow_star==True:
+                dx_gas = f['PartType0']['Coordinates'][:,0] - sub['pos_x']
+                dy_gas = f['PartType0']['Coordinates'][:,1] - sub['pos_y']
+                dz_gas = f['PartType0']['Coordinates'][:,2] - sub['pos_z']
+            else:
+                pass
 #             R = (dx_gas**2 + dy_gas**2 + dz_gas**2)**(1/2)#units: physical kpc
             num_metal = f['PartType0']['GFM_Metals'][:,metals.index(num)]
             den_metal = f['PartType0']['GFM_Metals'][:,metals.index(den)]
@@ -1224,7 +1257,88 @@ def gasmetals_only(id, redshift, num, den, solar_units=True):
     else:
         log_ratio = np.log10(ratio)
         
-    return log_ratio
+    if follow_star==True:
+        stellar_data = get_galaxy_particle_data(id=id , redshift=redshift, populate_dict=True)
+        dx_star = stellar_data['relative_x_coordinates']
+        dy_star = stellar_data['relative_y_coordinates']
+        dz_star = stellar_data['relative_z_coordinates']
+        R = (dx_star**2 + dy_star**2 + dz_star**2)**(1/2)#units: physical kpc
+
+        scale_factor = a = 1.0 / (1 + redshift)
+
+        dx_gas = dx_gas*a/h # physical kpc
+        dy_gas = dy_gas*a/h
+        dz_gas = dz_gas*a/h
+    
+        tree = spatial.KDTree(list(zip(dx_gas, dy_gas, dz_gas)))
+        dd, ii = tree.query(list(zip(dx_star, dy_star, dz_star)), k=1)
+
+        new_log_ratio = np.take(log_ratio, ii)
+        
+        return new_log_ratio
+    else:
+        return log_ratio
+    
+
+def gasmetals_radius(id, redshift, num, den, solar_units=True, follow_star=False): 
+    '''
+    '''  
+    metals = ['hydrogen', 'helium', 'carbon', 'nitrogen', 'oxygen', 'neon', 'magnesium', 'silicon', 'iron']
+    
+    # get metal abundance ratio and other stuff
+    rawdata_filename = os.path.join('redshift_'+str(redshift)+'_data', 'cutout_'+str(id)+'_redshift_'+str(redshift)+'_rawdata.hdf5')    
+    with h5py.File(rawdata_filename, 'r') as f:
+#         starFormationTime = f['PartType4']['GFM_StellarFormationTime'][:]
+        sub, saved_filename = download_data(id, redshift)
+        if 'PartType0' in f:
+            if follow_star==True:
+                dx_gas = f['PartType0']['Coordinates'][:,0] - sub['pos_x']
+                dy_gas = f['PartType0']['Coordinates'][:,1] - sub['pos_y']
+                dz_gas = f['PartType0']['Coordinates'][:,2] - sub['pos_z']
+            else:
+                dx_gas = f['PartType0']['Coordinates'][:,0] - sub['pos_x']
+                dy_gas = f['PartType0']['Coordinates'][:,1] - sub['pos_y']
+                dz_gas = f['PartType0']['Coordinates'][:,2] - sub['pos_z']
+                R = (dx_gas**2 + dy_gas**2 + dz_gas**2)**(1/2)
+#             R = (dx_gas**2 + dy_gas**2 + dz_gas**2)**(1/2)#units: physical kpc
+            num_metal = f['PartType0']['GFM_Metals'][:,metals.index(num)]
+            den_metal = f['PartType0']['GFM_Metals'][:,metals.index(den)]
+        else:
+            return 0, 0
+
+    ratio = num_metal / den_metal
+    
+    if solar_units == True:
+        # solar abundance ratios (from http://hyperphysics.phy-astr.gsu.edu/hbase/Tables/suncomp.html)
+        solar_abundance = [71.0, 27.1, 0.40, 0.096, 0.97, 0.058, 0.076, 0.099, 0.14]
+        solar_ratio = solar_abundance[metals.index(num)] / solar_abundance[metals.index(den)]
+
+        big_ratio = ratio / solar_ratio
+        log_ratio = np.log10(big_ratio) # un-weighted
+    else:
+        log_ratio = np.log10(ratio)
+        
+    if follow_star==True:
+        stellar_data = get_galaxy_particle_data(id=id , redshift=redshift, populate_dict=True)
+        dx_star = stellar_data['relative_x_coordinates']
+        dy_star = stellar_data['relative_y_coordinates']
+        dz_star = stellar_data['relative_z_coordinates']
+        R = (dx_star**2 + dy_star**2 + dz_star**2)**(1/2)#units: physical kpc
+
+        scale_factor = a = 1.0 / (1 + redshift)
+
+        dx_gas = dx_gas*a/h # physical kpc
+        dy_gas = dy_gas*a/h
+        dz_gas = dz_gas*a/h
+    
+        tree = spatial.KDTree(list(zip(dx_gas, dy_gas, dz_gas)))
+        dd, ii = tree.query(list(zip(dx_star, dy_star, dz_star)), k=1)
+
+        new_log_ratio = np.take(log_ratio, ii)
+        
+        return new_log_ratio, R
+    else:
+        return log_ratio, R
 
 def effective_yield(id, redshift, follow_stars=False):
     '''
@@ -1278,6 +1392,7 @@ def effective_yield(id, redshift, follow_stars=False):
     
     # calculate densities
     rho_star = stellar_density(id, redshift, dx, dy, dz)
+    
     rho_gas = rho_gas * (1e10/h) / (a/h)**3 # M_sun / kpc^3
     
     f_gas = rho_gas / (rho_gas + rho_star) # gas fraction
@@ -1323,6 +1438,159 @@ def stellar_gas_metallicities(id, redshift):
     Z_gas = np.take(OH_gas, ii)
     
     return R, FeH_star, Z_gas
+
+def gas_mass(id, redshift, limit='Re'): 
+    scale_factor = a = 1.0 / (1 + redshift)
+    # get gas masses
+    rawdata_filename = os.path.join('redshift_'+str(redshift)+'_data', 'cutout_'+str(id)+'_redshift_'+str(redshift)+'_rawdata.hdf5')    
+    with h5py.File(rawdata_filename, 'r') as f:
+        if 'PartType0' in f:
+            sfr = f['PartType0']['StarFormationRate'][:]
+            mass_gas = f['PartType0']['Masses'][:]
+            mass_gas = mass_gas[sfr>0]
+            
+            sub, saved_filename = download_data(id, redshift)
+            dx_gas = f['PartType0']['Coordinates'][:,0] - sub['pos_x']
+            dy_gas = f['PartType0']['Coordinates'][:,1] - sub['pos_y']
+            dz_gas = f['PartType0']['Coordinates'][:,2] - sub['pos_z']
+            
+            dx_gas = dx_gas[sfr>0]
+            dy_gas = dy_gas[sfr>0]
+            dz_gas = dz_gas[sfr>0]
+            
+            dx_gas = dx_gas*a/h # physical kpc
+            dy_gas = dy_gas*a/h
+            dz_gas = dz_gas*a/h
+
+            R_gas = (dx_gas**2 + dy_gas**2 + dz_gas**2)**(1/2)#units: physical kpc
+            if limit == 'Re':
+                cutoff = halfmass_rad_stars(id, redshift)
+            else:
+                cutoff = limit
+            
+            mass_gas = mass_gas[R_gas<cutoff]
+            
+            mass_gas = mass_gas * (1e10/h) # units: solar masses
+            
+            total_mass = np.sum(mass_gas)
+        else:
+            return 0
+    
+    return np.log10(total_mass)
+
+def stellar_mass(id, redshift, limit='Re'): 
+    scale_factor = a = 1.0 / (1 + redshift)
+    
+    stellar_data = get_galaxy_particle_data(id=id , redshift=redshift, populate_dict=True)
+    LookbackTime = stellar_data['LookbackTime']
+    mass = stellar_data['stellar_masses']
+    dx = stellar_data['relative_x_coordinates']
+    dy = stellar_data['relative_y_coordinates']
+    dz = stellar_data['relative_z_coordinates']
+    R = (dx**2 + dy**2 + dz**2)**(1/2)#units: physical kpc
+    
+    if limit == 'Re':
+        total = 10**total_stellar_mass(id, redshift) / 2
+    else:
+        cutoff = limit
+        mass = mass[R < cutoff]
+        total = np.sum(mass)
+        
+    return np.log10(total)
+
+
+def bimodal_check(id, redshift, n_bins=20): 
+    scale_factor = a = 1.0 / (1 + redshift)
+    # get gas masses
+    rawdata_filename = os.path.join('redshift_'+str(redshift)+'_data', 'cutout_'+str(id)+'_redshift_'+str(redshift)+'_rawdata.hdf5')    
+    with h5py.File(rawdata_filename, 'r') as f:
+        if 'PartType0' in f:
+            sfr = f['PartType0']['StarFormationRate'][:]
+            mass_gas = f['PartType0']['Masses'][:]
+            mass_gas = mass_gas[sfr>0]
+            mass_gas = mass_gas * (1e10/h) # units: solar masses
+            
+            sub, saved_filename = download_data(id, redshift)
+            dx_gas = f['PartType0']['Coordinates'][:,0] - sub['pos_x']
+            dy_gas = f['PartType0']['Coordinates'][:,1] - sub['pos_y']
+            dz_gas = f['PartType0']['Coordinates'][:,2] - sub['pos_z']
+            
+            dx_gas = dx_gas[sfr>0]
+            dy_gas = dy_gas[sfr>0]
+            dz_gas = dz_gas[sfr>0]
+            
+            dx_gas = dx_gas*a/h # physical kpc
+            dy_gas = dy_gas*a/h
+            dz_gas = dz_gas*a/h
+
+            R_gas = (dx_gas**2 + dy_gas**2 + dz_gas**2)**(1/2)#units: physical kpc
+        else:
+            return 0, 0
+        
+#     percentiles = np.zeros(n_bins + 1) #N+1 for N percentiles 
+#     for i in range(1, (n_bins+1)):
+#         percentiles[i] = np.percentile(R_gas, (100/n_bins)*i)
+#     percentiles.sort()
+#     gas_sums, _, _ = scipy.stats.binned_statistic(R_gas, mass_gas, 'sum', bins=percentiles)
+    
+#     return np.log10(gas_sums), R_gas, percentiles[:-1]
+    return np.log10(mass_gas), R_gas
+
+
+def gas_consumption(id, redshift, follow_stars=True): 
+    scale_factor = a = 1.0 / (1 + redshift)
+    # get gas masses
+    rawdata_filename = os.path.join('redshift_'+str(redshift)+'_data', 'cutout_'+str(id)+'_redshift_'+str(redshift)+'_rawdata.hdf5')    
+    with h5py.File(rawdata_filename, 'r') as f:
+        if 'PartType0' in f:
+            sfr = f['PartType0']['StarFormationRate'][:]
+            mass_gas = f['PartType0']['Masses'][:]
+            mass_gas = mass_gas[sfr>0]
+            mass_gas = mass_gas * (1e10/h) # units: solar masses
+            sfr_new = sfr[sfr>0]
+            
+            sub, saved_filename = download_data(id, redshift)
+            dx_gas = f['PartType0']['Coordinates'][:,0] - sub['pos_x']
+            dy_gas = f['PartType0']['Coordinates'][:,1] - sub['pos_y']
+            dz_gas = f['PartType0']['Coordinates'][:,2] - sub['pos_z']
+            
+            dx_gas = dx_gas[sfr>0]
+            dy_gas = dy_gas[sfr>0]
+            dz_gas = dz_gas[sfr>0]
+            
+            if len(dx_gas) == 0: # if empty
+                return 0, 0
+            else:
+                pass
+            
+            dx_gas = dx_gas*a/h # physical kpc
+            dy_gas = dy_gas*a/h
+            dz_gas = dz_gas*a/h
+
+            R_gas = (dx_gas**2 + dy_gas**2 + dz_gas**2)**(1/2)#units: physical kpc
+        else:
+            return 0, 0
+        
+    gas_con_raw = mass_gas / sfr_new
+    
+    if follow_stars:
+        stellar_data = get_galaxy_particle_data(id=id , redshift=redshift, populate_dict=True)
+        dx_star = stellar_data['relative_x_coordinates']
+        dy_star = stellar_data['relative_y_coordinates']
+        dz_star = stellar_data['relative_z_coordinates']
+        R_star = (dx_star**2 + dy_star**2 + dz_star**2)**(1/2)#units: physical kpc
+                
+        tree = spatial.KDTree(list(zip(dx_gas, dy_gas, dz_gas)))
+        dd, ii = tree.query(list(zip(dx_star, dy_star, dz_star)), k=1)
+        
+        gas_con = np.take(gas_con_raw, ii)
+        R = R_star
+    else:
+        gas_con = gas_con_raw
+        R = R_gas
+    
+    return gas_con, R
+
 
 def stellar_gas_densities(id, redshift, follow_stars=False):
     '''
