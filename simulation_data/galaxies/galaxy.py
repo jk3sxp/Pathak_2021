@@ -1231,12 +1231,20 @@ def gasmetals_only(id, redshift, num, den, solar_units=True, follow_star=False):
     rawdata_filename = os.path.join('redshift_'+str(redshift)+'_data', 'cutout_'+str(id)+'_redshift_'+str(redshift)+'_rawdata.hdf5')    
     with h5py.File(rawdata_filename, 'r') as f:
 #         starFormationTime = f['PartType4']['GFM_StellarFormationTime'][:]
-        sub, saved_filename = download_data(id, redshift)
         if 'PartType0' in f:
             if follow_star==True:
+                sub, saved_filename = download_data(id, redshift)
+#                 print(sub)
+#                 if hasattr(sub, '__len__'):
+                    
+#                     if len(sub)>1:
                 dx_gas = f['PartType0']['Coordinates'][:,0] - sub['pos_x']
                 dy_gas = f['PartType0']['Coordinates'][:,1] - sub['pos_y']
                 dz_gas = f['PartType0']['Coordinates'][:,2] - sub['pos_z']
+#                     else: 
+#                         return 0
+#                 else: 
+#                     return 0
             else:
                 pass
 #             R = (dx_gas**2 + dy_gas**2 + dz_gas**2)**(1/2)#units: physical kpc
@@ -1357,26 +1365,29 @@ def effective_yield(id, redshift, follow_stars=False):
     with h5py.File(rawdata_filename, 'r') as f:
         if 'PartType0' in f:
             sub, saved_filename = download_data(id, redshift)
+#             print(sub)
+#             if hasattr(sub, '__len__'):
+#                 if len(sub)>1:
             dx_gas = f['PartType0']['Coordinates'][:,0] - sub['pos_x']
             dy_gas = f['PartType0']['Coordinates'][:,1] - sub['pos_y']
             dz_gas = f['PartType0']['Coordinates'][:,2] - sub['pos_z']
-            
+
             dx_gas = dx_gas*a/h # physical kpc
             dy_gas = dy_gas*a/h
             dz_gas = dz_gas*a/h
 
             R_gas = (dx_gas**2 + dy_gas**2 + dz_gas**2)**(1/2)#units: physical kpc
-            
+
             rho_gas_raw = f['PartType0']['Density'][:]
             OH_gas = gasmetals_only(id, redshift, 'oxygen', 'hydrogen', solar_units=False) # in log units
-            
+
             if follow_stars == True:
                 dx = dx_star
                 dy = dy_star
                 dz = dz_star
                 tree = spatial.KDTree(list(zip(dx_gas, dy_gas, dz_gas)))
                 dd, ii = tree.query(list(zip(dx, dy, dz)), k=1)
-        
+
                 rho_gas = np.take(rho_gas_raw, ii) 
                 Z_gas = np.take(OH_gas, ii)
                 Z_gas = 10**Z_gas
@@ -1384,9 +1395,13 @@ def effective_yield(id, redshift, follow_stars=False):
                 dx = dx_gas
                 dy = dy_gas
                 dz = dz_gas 
-                
+
                 rho_gas = rho_gas_raw
                 Z_gas = 10**OH_gas
+#                 else:
+#                     return 0, 0, 0, 0
+#             else:
+#                 return 0, 0, 0, 0
         else:
             return 0, 0, 0, 0
     
@@ -1445,34 +1460,40 @@ def gas_mass(id, redshift, limit='Re'):
     rawdata_filename = os.path.join('redshift_'+str(redshift)+'_data', 'cutout_'+str(id)+'_redshift_'+str(redshift)+'_rawdata.hdf5')    
     with h5py.File(rawdata_filename, 'r') as f:
         if 'PartType0' in f:
-            sfr = f['PartType0']['StarFormationRate'][:]
-            mass_gas = f['PartType0']['Masses'][:]
-            mass_gas = mass_gas[sfr>0]
-            
             sub, saved_filename = download_data(id, redshift)
-            dx_gas = f['PartType0']['Coordinates'][:,0] - sub['pos_x']
-            dy_gas = f['PartType0']['Coordinates'][:,1] - sub['pos_y']
-            dz_gas = f['PartType0']['Coordinates'][:,2] - sub['pos_z']
-            
-            dx_gas = dx_gas[sfr>0]
-            dy_gas = dy_gas[sfr>0]
-            dz_gas = dz_gas[sfr>0]
-            
-            dx_gas = dx_gas*a/h # physical kpc
-            dy_gas = dy_gas*a/h
-            dz_gas = dz_gas*a/h
+            if hasattr(sub, '__len__'):
+                if len(sub)>1:
+                    sfr = f['PartType0']['StarFormationRate'][:]
+                    mass_gas = f['PartType0']['Masses'][:]
+                    mass_gas = mass_gas[sfr>0]
 
-            R_gas = (dx_gas**2 + dy_gas**2 + dz_gas**2)**(1/2)#units: physical kpc
-            if limit == 'Re':
-                cutoff = halfmass_rad_stars(id, redshift)
+                    dx_gas = f['PartType0']['Coordinates'][:,0] - sub['pos_x']
+                    dy_gas = f['PartType0']['Coordinates'][:,1] - sub['pos_y']
+                    dz_gas = f['PartType0']['Coordinates'][:,2] - sub['pos_z']
+
+                    dx_gas = dx_gas[sfr>0]
+                    dy_gas = dy_gas[sfr>0]
+                    dz_gas = dz_gas[sfr>0]
+
+                    dx_gas = dx_gas*a/h # physical kpc
+                    dy_gas = dy_gas*a/h
+                    dz_gas = dz_gas*a/h
+
+                    R_gas = (dx_gas**2 + dy_gas**2 + dz_gas**2)**(1/2)#units: physical kpc
+                    if limit == 'Re':
+                        cutoff = halfmass_rad_stars(id, redshift)
+                    else:
+                        cutoff = limit
+
+                    mass_gas = mass_gas[R_gas<cutoff]
+
+                    mass_gas = mass_gas * (1e10/h) # units: solar masses
+
+                    total_mass = np.sum(mass_gas)
+                else:
+                    return 0
             else:
-                cutoff = limit
-            
-            mass_gas = mass_gas[R_gas<cutoff]
-            
-            mass_gas = mass_gas * (1e10/h) # units: solar masses
-            
-            total_mass = np.sum(mass_gas)
+                return 0
         else:
             return 0
     
