@@ -7,7 +7,7 @@ import requests
 #import get()
 from simulation_data import get
 
-from .galaxy import timeaverage_stellar_formation_rate, median_stellar_age, total_stellar_mass, halfmass_rad_stars, halflight_rad_stars, max_merger_ratio, avg_particular_abundance, avg_abundance, gas_mass, stellar_mass, avg_gas_abundance
+from .galaxy import timeaverage_stellar_formation_rate, median_stellar_age, total_stellar_mass, halfmass_rad_stars, halflight_rad_stars, max_merger_ratio, avg_particular_abundance, avg_abundance, gas_mass, stellar_mass, avg_gas_abundance, percentile_stellar_age
 
 class GalaxyPopulation():
     
@@ -96,8 +96,8 @@ class GalaxyPopulation():
         from pathlib import Path
         if Path('galaxy_population_data_'+str(self.redshift)+'.hdf5').is_file():
             with h5py.File('galaxy_population_data_'+str(self.redshift)+'.hdf5', 'a') as f:
-                d16 = f.create_dataset('gas_mass_1kpc', data = self.get_gas_mass_1kpc())
-                d17 = f.create_dataset('stellar_mass_1kpc', data = self.get_stellar_mass_1kpc())
+#                 d16 = f.create_dataset('gas_mass_1kpc', data = self.get_gas_mass_1kpc())
+#                 d17 = f.create_dataset('stellar_mass_1kpc', data = self.get_stellar_mass_1kpc())
 #                 d18 = f.create_dataset('OH_Re', data = self.get_ratio_abundance(num='oxygen', den='hydrogen', weight=None))
 #                 d19 = f.create_dataset('OH_1kpc', data = self.get_ratio_abundance(num='oxygen', den='hydrogen', weight=None, radius=1))
 #                 d20 = f.create_dataset('OFe_Re', data = self.get_ratio_abundance(num='oxygen', den='iron', weight=None))
@@ -106,6 +106,7 @@ class GalaxyPopulation():
 #                 d23 = f.create_dataset('FeH_gas_1kpc', data = self.get_ratio_gas_abundance(num='iron', den='hydrogen', radius=1))
 #                 d24 = f.create_dataset('OH_gas_Re', data = self.get_ratio_gas_abundance(num='oxygen', den='hydrogen', radius=None))
 #                 d25 = f.create_dataset('OH_gas_1kpc', data = self.get_ratio_gas_abundance(num='oxygen', den='hydrogen', radius=1))
+                d26 = f.create_dataset('percentile_age', data = self.get_percentile_stellar_age())
             pass
         else:
             with h5py.File('galaxy_population_data_'+str(self.redshift)+'.hdf5', 'a') as f:
@@ -135,6 +136,7 @@ class GalaxyPopulation():
                 d23 = f.create_dataset('FeH_gas_1kpc', data = self.get_ratio_gas_abundance(num='iron', den='hydrogen', radius=1))
                 d24 = f.create_dataset('OH_gas_Re', data = self.get_ratio_gas_abundance(num='oxygen', den='hydrogen', radius=None))
                 d25 = f.create_dataset('OH_gas_1kpc', data = self.get_ratio_gas_abundance(num='oxygen', den='hydrogen', radius=1))
+                d26 = f.create_dataset('percentile_age', data = self.get_percentile_stellar_age())
                 
         with h5py.File('galaxy_population_data_'+str(self.redshift)+'.hdf5', 'r') as f:
             ids = f['ids'][:]
@@ -163,6 +165,7 @@ class GalaxyPopulation():
             FeH_gas_1kpc = f['FeH_gas_1kpc']
             OH_gas_Re = f['FeH_gas_Re']
             OH_gas_1kpc = f['FeH_gas_1kpc']
+            percentile_age = f['percentile_age'][:]
 
         galaxy_population_data = {
                                     'ids': ids,
@@ -189,7 +192,8 @@ class GalaxyPopulation():
                                     'FeH_gas_Re': FeH_gas_Re,
                                     'FeH_gas_1kpc': FeH_gas_1kpc,
                                     'OH_gas_Re': OH_gas_Re,
-                                    'OH_gas_1kpc': OH_gas_1kpc
+                                    'OH_gas_1kpc': OH_gas_1kpc,
+                                    'percentile_age': percentile_age
                                  }
         return galaxy_population_data
 
@@ -293,6 +297,50 @@ class GalaxyPopulation():
             return median_SFT
         else:
             return self.calc_median_stellar_age()
+        
+
+    #percentile stellar age
+    def calc_percentile_stellar_age(self):
+        '''
+        input params: 
+            [none]
+        preconditions:
+            requires initialization with self.select_galaxies(redshift=redshift, mass_min=10.5, mass_max=12)
+            requires galaxy.median_stellar_age(id, redshift)
+            requires output from galaxy.get_galaxy_particle_data(id, redshift, populate_dict=True): halo file must exist
+        output params:
+            median stellar age: an array of median stellar ages of galaxies in selection 
+                    [units: Lookback time in Gyr] 
+        '''
+        ids = self.ids
+        PercentileSFT = np.zeros(len(ids))
+        for i, id in enumerate(ids):
+            PercentileSFT[i] = percentile_stellar_age(redshift = self.redshift, id = id)
+        np.savetxt('z='+ str(self.redshift) +'_Percentile_SFT', PercentileSFT)
+        Percentile_SFT = np.loadtxt('z='+ str(self.redshift) +'_Percentile_SFT', dtype=float)
+        return Percentile_SFT
+    
+    def get_percentile_stellar_age(self):
+        '''
+        input params: 
+            [none]
+        preconditions:
+            requires initialization with self.select_galaxies(redshift=redshift, mass_min=10.5, mass_max=12)
+            requires self.calc_median_stellar_age()
+        output params:
+            checks if array of median stellar age exists in temporary text file.
+                if temporary text file does not exist, calculates median stellar age using self.calc_median_stellar_age()
+                if temporary file exists, reads array from temporary file
+            returns median stellar age: an array of median stellar ages of galaxies in selection 
+                    [units: Lookback time in Gyr] 
+        '''
+        import pathlib
+        file = pathlib.Path('z='+ str(self.redshift) +'_Percentile_SFT')
+        if file.exists ():
+            percentile_SFT = np.loadtxt('z='+ str(self.redshift) +'_Percentile_SFT', dtype=float) 
+            return percentile_SFT
+        else:
+            return self.calc_percentile_stellar_age()
     
 
         

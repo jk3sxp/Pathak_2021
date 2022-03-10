@@ -370,6 +370,24 @@ def median_stellar_age(id, redshift):
     return np.median(LookbackTime) #units: Gyr in Lookback time
 
 
+def percentile_stellar_age(id, redshift, pmin=10, pmax=80):
+    '''
+    pmin and pmax should be integers
+    '''
+    n_bins = 100
+    
+    stellar_data = get_galaxy_particle_data(id=id , redshift=redshift, populate_dict=True)
+    LookbackTime = stellar_data['LookbackTime']
+    
+    age_percentiles = np.zeros(n_bins + 1) #N+1 for N percentiles 
+    for i in range(1, (n_bins+1)):
+        age_percentiles[i] = np.percentile(LookbackTime, (100/n_bins)*i) 
+        
+    age = age_percentiles[int(pmax)-1] - age_percentiles[int(pmin)-1]
+        
+    return age #units: Gyr in Lookback time
+
+
 
 def mean_stellar_metallicity(id, redshift):
     '''
