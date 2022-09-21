@@ -1369,6 +1369,7 @@ def gasmetals_radius(id, redshift, num, den, solar_units=True, follow_star=False
 def effective_yield(id, redshift, follow_stars=False):
     '''
     follow_stars: if True, effective yield is calculated following star particles (i.e. gas density is taken as the density of the gas cell closest to each star particle)
+    approximates Z with [O/H]
     '''
     stellar_data = get_galaxy_particle_data(id=id , redshift=redshift, populate_dict=True)
     dx_star = stellar_data['relative_x_coordinates']
@@ -1398,6 +1399,7 @@ def effective_yield(id, redshift, follow_stars=False):
 
             rho_gas_raw = f['PartType0']['Density'][:]
             OH_gas = gasmetals_only(id, redshift, 'oxygen', 'hydrogen', solar_units=False) # in log units
+            O_mass = f['PartType0']['GFM_Metallicity'][:]/0.0127 # solar units
 
             if follow_stars == True:
                 dx = dx_star
