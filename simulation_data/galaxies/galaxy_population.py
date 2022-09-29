@@ -96,17 +96,78 @@ class GalaxyPopulation():
         from pathlib import Path
         if Path('galaxy_population_data_'+str(self.redshift)+'.hdf5').is_file():
             with h5py.File('galaxy_population_data_'+str(self.redshift)+'.hdf5', 'a') as f:
+                del f['FeH_Re']
+                print('deleted')
+                d10 = f.create_dataset('FeH_Re', data = self.get_ratio_abundance(num='iron', den='hydrogen', weight='luminosity'))
+                print('10/25')
+                
+                del f['MgFe_Re']
+                print('deleted')
+                d11 = f.create_dataset('MgFe_Re', data = self.get_ratio_abundance(num='magnesium', den='iron', weight='luminosity'))
+                print('11/25')
+                
+                del f['MgH_Re']
+                print('deleted')
+                d12 = f.create_dataset('MgH_Re', data = self.get_ratio_abundance(num='magnesium', den='hydrogen', weight='luminosity'))
+                print('12/25')
+                
+                del f['FeH_1kpc']
+                print('deleted')
+                d13 = f.create_dataset('FeH_1kpc', data = self.get_ratio_abundance(num='iron', den='hydrogen', weight='luminosity', radius=1.0))
+                print('13/25')
+                
+                del f['MgFe_1kpc']
+                print('deleted')
+                d14 = f.create_dataset('MgFe_1kpc', data = self.get_ratio_abundance(num='magnesium', den='iron', weight='luminosity', radius=1.0))
+                print('14/25')
+                
+                del f['MgH_1kpc']
+                print('deleted')
+                d15 = f.create_dataset('MgH_1kpc', data = self.get_ratio_abundance(num='magnesium', den='hydrogen', weight='luminosity', radius=1.0))
+                print('15/25')
+                
 #                 d16 = f.create_dataset('gas_mass_1kpc', data = self.get_gas_mass_1kpc())
 #                 d17 = f.create_dataset('stellar_mass_1kpc', data = self.get_stellar_mass_1kpc())
+#                 del f['OH_Re']
+#                 print('deleted')
 #                 d18 = f.create_dataset('OH_Re', data = self.get_ratio_abundance(num='oxygen', den='hydrogen', weight=None))
+#                 print('18/25')
+        
+#                 del f['OH_1kpc']
+#                 print('deleted')
 #                 d19 = f.create_dataset('OH_1kpc', data = self.get_ratio_abundance(num='oxygen', den='hydrogen', weight=None, radius=1))
+#                 print('19/25')
+                
+#                 del f['OFe_Re']
+#                 print('deleted')
 #                 d20 = f.create_dataset('OFe_Re', data = self.get_ratio_abundance(num='oxygen', den='iron', weight=None))
+#                 print('20/25')
+                
+#                 del f['OFe_1kpc']
+#                 print('deleted')
 #                 d21 = f.create_dataset('OFe_1kpc', data = self.get_ratio_abundance(num='oxygen', den='iron', weight=None, radius=1))
+#                 print('21/25')
+                
+#                 del f['FeH_gas_Re']
+#                 print('deleted')
 #                 d22 = f.create_dataset('FeH_gas_Re', data = self.get_ratio_gas_abundance(num='iron', den='hydrogen', radius=None))
+#                 print('22/25')
+                
+#                 del f['FeH_gas_1kpc']
+#                 print('deleted')
 #                 d23 = f.create_dataset('FeH_gas_1kpc', data = self.get_ratio_gas_abundance(num='iron', den='hydrogen', radius=1))
+#                 print('23/25')
+                
+#                 del f['OH_gas_Re']
+#                 print('deleted')
 #                 d24 = f.create_dataset('OH_gas_Re', data = self.get_ratio_gas_abundance(num='oxygen', den='hydrogen', radius=None))
+#                 print('24/25')
+                
+#                 del f['OH_gas_1kpc']
+#                 print('deleted')
 #                 d25 = f.create_dataset('OH_gas_1kpc', data = self.get_ratio_gas_abundance(num='oxygen', den='hydrogen', radius=1))
-                d26 = f.create_dataset('percentile_age', data = self.get_percentile_stellar_age())
+#                 print('25/25')
+#                 d26 = f.create_dataset('percentile_age', data = self.get_percentile_stellar_age())
             pass
         else:
             with h5py.File('galaxy_population_data_'+str(self.redshift)+'.hdf5', 'a') as f:

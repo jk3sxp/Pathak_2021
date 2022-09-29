@@ -610,6 +610,89 @@ def potential(id, redshift, n_bins=None):
         
         return statistic, radial_percentiles[:-1], R, grav
     
+    
+def get_solarratio(num, den):
+    '''
+    calculate (M_num/M_den)_solar
+    uses Asplund (2009) numerical solar abundances to calculate solar mass ratio
+    atomic masses from 2021 IUPAC report: https://www.degruyter.com/document/doi/10.1515/pac-2019-0603/html
+    '''
+    # log(N_X/N_H)+12 abundances
+    abundance = {
+        'hydrogen': 12.00,
+        'helium': 10.93,
+        'carbon': 8.43,
+        'nitrogen': 7.83,
+        'oxygen': 8.69,
+        'neon': 7.93,
+        'magnesium': 7.60,
+        'silicon': 7.51,
+        'iron': 7.50
+    }
+    
+    atomic_mass = {
+        'hydrogen': 1.008,
+        'helium': 4.002602,
+        'carbon': 12.011,
+        'nitrogen': 14.007,
+        'oxygen': 15.999,
+        'neon': 21.1797,
+        'magnesium': 24.305,
+        'silicon': 28.085,
+        'iron': 55.845
+    }
+    
+    # get numerical abundance ratio in normal units
+    num_abund = 10**(abundance[num]-12)
+    den_abund = 10**(abundance[den]-12)
+    abundance_ratio = num_abund / den_abund
+    
+    # convert to mass ratio
+    mass_ratio = atomic_mass[num] / atomic_mass[den]
+    solar_ratio = abundance_ratio * mass_ratio
+    
+    return solar_ratio
+
+
+def get_solarmassfraction(metal):
+    '''
+    calculate (M_metal/M_tot)_solar
+    uses Asplund (2009) numerical solar abundances
+    atomic masses from 2021 IUPAC report: https://www.degruyter.com/document/doi/10.1515/pac-2019-0603/html
+    '''
+    # log(N_X/N_H)+12 abundances
+    abundance = {
+        'hydrogen': 12.00,
+        'helium': 10.93,
+        'carbon': 8.43,
+        'nitrogen': 7.83,
+        'oxygen': 8.69,
+        'neon': 7.93,
+        'magnesium': 7.60,
+        'silicon': 7.51,
+        'iron': 7.50
+    }
+    
+    H_massfrac = 0.7381 # from Asplund
+    
+    atomic_mass = {
+        'hydrogen': 1.008,
+        'helium': 4.002602,
+        'carbon': 12.011,
+        'nitrogen': 14.007,
+        'oxygen': 15.999,
+        'neon': 21.1797,
+        'magnesium': 24.305,
+        'silicon': 28.085,
+        'iron': 55.845
+    }
+    
+    metal_abund = 10**(abundance[metal]-12)
+    mass_ratio = atomic_mass[metal] / atomic_mass['hydrogen']
+    massfraction = metal_abund * mass_ratio * H_massfrac
+    
+    return massfraction    
+    
 
 def avg_abundance(id, redshift, num, den, weight=None, radius=None):
     # get particle data
@@ -643,9 +726,7 @@ def avg_abundance(id, redshift, num, den, weight=None, radius=None):
     ratio = num_metal / den_metal
     ratio = ratio[w]
     
-    # solar abundance ratios (from http://hyperphysics.phy-astr.gsu.edu/hbase/Tables/suncomp.html)
-    solar_abundance = [71.0, 27.1, 0.40, 0.096, 0.97, 0.058, 0.076, 0.099, 0.14]
-    solar_ratio = solar_abundance[metals.index(num)] / solar_abundance[metals.index(den)]
+    solar_ratio = get_solarratio(num, den)
     
     big_ratio = ratio / solar_ratio
     #log_ratio = np.log10(big_ratio) # un-weighted
@@ -715,9 +796,7 @@ def avg_particular_abundance(id, redshift, metal, weight=None, radius=None):
         num_metal = num_metal[starFormationTime>0] # bc R above is calculated using this filter
     num_metal = num_metal[w]
     
-    # solar abundance ratios (from http://hyperphysics.phy-astr.gsu.edu/hbase/Tables/suncomp.html)
-    solar_abundance = [71.0, 27.1, 0.40, 0.096, 0.97, 0.058, 0.076, 0.099, 0.14]
-    solar_metal = solar_abundance[metals.index(metal)]
+    solar_metal = get_solarmassfraction(metal)
     
     big_ratio = num_metal / solar_metal
     #log_ratio = np.log10(big_ratio) # un-weighted
@@ -843,9 +922,7 @@ def metals_profile(id, redshift, num, den, n_bins=20, profile='median', weight=N
         den_metal = den_metal[starFormationTime>0]
     ratio = num_metal / den_metal
     
-    # solar abundance ratios (from http://hyperphysics.phy-astr.gsu.edu/hbase/Tables/suncomp.html)
-    solar_abundance = [71.0, 27.1, 0.40, 0.096, 0.97, 0.058, 0.076, 0.099, 0.14]
-    solar_ratio = solar_abundance[metals.index(num)] / solar_abundance[metals.index(den)]
+    solar_ratio = get_solarratio(num, den)
     
     big_ratio = ratio / solar_ratio
     log_ratio = np.log10(big_ratio) # un-weighted
@@ -940,9 +1017,7 @@ def starmetals_only(id, redshift, num, den):
         den_metal = den_metal[starFormationTime>0]
     ratio = num_metal / den_metal
     
-    # solar abundance ratios (from http://hyperphysics.phy-astr.gsu.edu/hbase/Tables/suncomp.html)
-    solar_abundance = [71.0, 27.1, 0.40, 0.096, 0.97, 0.058, 0.076, 0.099, 0.14]
-    solar_ratio = solar_abundance[metals.index(num)] / solar_abundance[metals.index(den)]
+    solar_ratio = get_solarratio(num, den)
     
     big_ratio = ratio / solar_ratio
     log_ratio = np.log10(big_ratio) # un-weighted
@@ -993,9 +1068,7 @@ def metals_particle_profile(id, redshift, particles, num, den, n_bins=20, profil
         den_metal = den_metal[particles==1]
     ratio = num_metal / den_metal
     
-    # solar abundance ratios (from http://hyperphysics.phy-astr.gsu.edu/hbase/Tables/suncomp.html)
-    solar_abundance = [71.0, 27.1, 0.40, 0.096, 0.97, 0.058, 0.076, 0.099, 0.14]
-    solar_ratio = solar_abundance[metals.index(num)] / solar_abundance[metals.index(den)]
+    solar_ratio = get_solarratio(num, den)
     
     big_ratio = ratio / solar_ratio
     log_ratio = np.log10(big_ratio) # un-weighted
@@ -1064,9 +1137,7 @@ def metals_density_profile(id, redshift, num, den, n_bins=20):
         den_metal = den_metal[starFormationTime>0]
     ratio = num_metal / den_metal
     
-    # solar abundance ratios (from http://hyperphysics.phy-astr.gsu.edu/hbase/Tables/suncomp.html)
-    solar_abundance = [71.0, 27.1, 0.40, 0.096, 0.97, 0.058, 0.076, 0.099, 0.14]
-    solar_ratio = solar_abundance[metals.index(num)] / solar_abundance[metals.index(den)]
+    solar_ratio = get_solarratio(num, den)
     
     big_ratio = ratio / solar_ratio
     log_ratio = np.log10(big_ratio) # un-weighted
@@ -1143,9 +1214,7 @@ def histmetals_density_profile(id, redshift, num, den, n_bins=20, young=None):
 #         stellarHsml = f['PartType4']['StellarHsml'][flag] # ckpc/h
     ratio = num_metal / den_metal
     
-    # solar abundance ratios (from http://hyperphysics.phy-astr.gsu.edu/hbase/Tables/suncomp.html)
-    solar_abundance = [71.0, 27.1, 0.40, 0.096, 0.97, 0.058, 0.076, 0.099, 0.14]
-    solar_ratio = solar_abundance[metals.index(num)] / solar_abundance[metals.index(den)]
+    solar_ratio = get_solarratio(num, den)
     
     big_ratio = ratio / solar_ratio
     log_ratio = np.log10(big_ratio) # un-weighted
@@ -1220,9 +1289,7 @@ def gasmetals_density_profile(id, redshift, num, den, n_bins=20, young=None, den
 
     ratio = num_metal / den_metal
     
-    # solar abundance ratios (from http://hyperphysics.phy-astr.gsu.edu/hbase/Tables/suncomp.html)
-    solar_abundance = [71.0, 27.1, 0.40, 0.096, 0.97, 0.058, 0.076, 0.099, 0.14]
-    solar_ratio = solar_abundance[metals.index(num)] / solar_abundance[metals.index(den)]
+    solar_ratio = get_solarratio(num, den)
     
     big_ratio = ratio / solar_ratio
     log_ratio = np.log10(big_ratio) # un-weighted
@@ -1274,9 +1341,7 @@ def gasmetals_only(id, redshift, num, den, solar_units=True, follow_star=False):
     ratio = num_metal / den_metal
     
     if solar_units == True:
-        # solar abundance ratios (from http://hyperphysics.phy-astr.gsu.edu/hbase/Tables/suncomp.html)
-        solar_abundance = [71.0, 27.1, 0.40, 0.096, 0.97, 0.058, 0.076, 0.099, 0.14]
-        solar_ratio = solar_abundance[metals.index(num)] / solar_abundance[metals.index(den)]
+        solar_ratio = get_solarratio(num, den)
 
         big_ratio = ratio / solar_ratio
         log_ratio = np.log10(big_ratio) # un-weighted
@@ -1335,9 +1400,7 @@ def gasmetals_radius(id, redshift, num, den, solar_units=True, follow_star=False
     ratio = num_metal / den_metal
     
     if solar_units == True:
-        # solar abundance ratios (from http://hyperphysics.phy-astr.gsu.edu/hbase/Tables/suncomp.html)
-        solar_abundance = [71.0, 27.1, 0.40, 0.096, 0.97, 0.058, 0.076, 0.099, 0.14]
-        solar_ratio = solar_abundance[metals.index(num)] / solar_abundance[metals.index(den)]
+        solar_ratio = get_solarratio(num, den)
 
         big_ratio = ratio / solar_ratio
         log_ratio = np.log10(big_ratio) # un-weighted
@@ -1378,6 +1441,7 @@ def effective_yield(id, redshift, follow_stars=False):
     R_star = (dx_star**2 + dy_star**2 + dz_star**2)**(1/2)#units: physical kpc
                 
     scale_factor = a = 1.0 / (1 + redshift)
+    MO_Mtot_solar = get_solarmassfraction('oxygen')
     
     # gas particle locations
     rawdata_filename = os.path.join('redshift_'+str(redshift)+'_data', 'cutout_'+str(id)+'_redshift_'+str(redshift)+'_rawdata.hdf5')    
@@ -1410,14 +1474,14 @@ def effective_yield(id, redshift, follow_stars=False):
 
                 rho_gas = np.take(rho_gas_raw, ii) 
                 Z_gas = np.take(OH_gas, ii)
-                Z_gas = 10**Z_gas
+                Z_gas = 10**Z_gas * MO_Mtot_solar
             else:
                 dx = dx_gas
                 dy = dy_gas
                 dz = dz_gas 
 
                 rho_gas = rho_gas_raw
-                Z_gas = 10**OH_gas
+                Z_gas = 10**OH_gas * MO_Mtot_solar
 #                 else:
 #                     return 0, 0, 0, 0
 #             else:
@@ -1749,9 +1813,7 @@ def gasmetals_profile(id, redshift, num, den, n_bins=20, profile='median', weigh
         dz = f['PartType0']['Coordinates'][:,2] - sub['pos_z']
     ratio = num_metal / den_metal
     
-    # solar abundance ratios (from http://hyperphysics.phy-astr.gsu.edu/hbase/Tables/suncomp.html)
-    solar_abundance = [71.0, 27.1, 0.40, 0.096, 0.97, 0.058, 0.076, 0.099, 0.14]
-    solar_ratio = solar_abundance[metals.index(num)] / solar_abundance[metals.index(den)]
+    solar_ratio = get_solarratio(num, den)
     
     big_ratio = ratio / solar_ratio
     log_ratio = np.log10(big_ratio) # un-weighted
