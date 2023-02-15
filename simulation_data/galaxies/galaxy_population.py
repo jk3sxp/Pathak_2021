@@ -21,7 +21,7 @@ class GalaxyPopulation():
         
         
     #select ids for a given redshift and mass-cut
-    def select_galaxies(self, redshift, mass_min, mass_max=12):
+    def select_galaxies(self, redshift, mass_min, mass_max=12, ids=[]):
         '''
         input params: 
             id: the simulation id of target galaxy: integer (specific to simulation, pre-check) 
@@ -36,7 +36,12 @@ class GalaxyPopulation():
             ids: array of simulation ids of galaxies in selection
                     [units: none] 
     '''
-        if self.ids == [] or (self.mass_min != mass_min or self.mass_max != mass_max or self.redshift != redshift):
+        if len(self.ids) != 0:
+            self.ids = ids
+            self.mass_min = mass_min
+            self.mass_max = mass_max
+            self.redshift = redshift
+        elif self.ids == [] or (self.mass_min != mass_min or self.mass_max != mass_max or self.redshift != redshift):
             h = 0.6774
             mass_minimum = 10**mass_min / 1e10 * h
             mass_maximum = 10**mass_max / 1e10 * h
@@ -187,17 +192,17 @@ class GalaxyPopulation():
                 d13 = f.create_dataset('FeH_1kpc', data = self.get_ratio_abundance(num='iron', den='hydrogen', weight='luminosity', radius=1.0))
                 d14 = f.create_dataset('MgFe_1kpc', data = self.get_ratio_abundance(num='magnesium', den='iron', weight='luminosity', radius=1.0))
                 d15 = f.create_dataset('MgH_1kpc', data = self.get_ratio_abundance(num='magnesium', den='hydrogen', weight='luminosity', radius=1.0))
-                d16 = f.create_dataset('gas_mass_1kpc', data = self.get_gas_mass_1kpc())
-                d17 = f.create_dataset('stellar_mass_1kpc', data = self.get_stellar_mass_1kpc())
-                d18 = f.create_dataset('OH_Re', data = self.get_ratio_abundance(num='oxygen', den='hydrogen', weight=None))
-                d19 = f.create_dataset('OH_1kpc', data = self.get_ratio_abundance(num='oxygen', den='hydrogen', weight=None, radius=1))
-                d20 = f.create_dataset('OFe_Re', data = self.get_ratio_abundance(num='oxygen', den='iron', weight=None))
-                d21 = f.create_dataset('OFe_1kpc', data = self.get_ratio_abundance(num='oxygen', den='iron', weight=None, radius=1))
-                d22 = f.create_dataset('FeH_gas_Re', data = self.get_ratio_gas_abundance(num='iron', den='hydrogen', radius=None))
-                d23 = f.create_dataset('FeH_gas_1kpc', data = self.get_ratio_gas_abundance(num='iron', den='hydrogen', radius=1))
-                d24 = f.create_dataset('OH_gas_Re', data = self.get_ratio_gas_abundance(num='oxygen', den='hydrogen', radius=None))
-                d25 = f.create_dataset('OH_gas_1kpc', data = self.get_ratio_gas_abundance(num='oxygen', den='hydrogen', radius=1))
-                d26 = f.create_dataset('percentile_age', data = self.get_percentile_stellar_age())
+#                 d16 = f.create_dataset('gas_mass_1kpc', data = self.get_gas_mass_1kpc())
+#                 d17 = f.create_dataset('stellar_mass_1kpc', data = self.get_stellar_mass_1kpc())
+#                 d18 = f.create_dataset('OH_Re', data = self.get_ratio_abundance(num='oxygen', den='hydrogen', weight=None))
+#                 d19 = f.create_dataset('OH_1kpc', data = self.get_ratio_abundance(num='oxygen', den='hydrogen', weight=None, radius=1))
+#                 d20 = f.create_dataset('OFe_Re', data = self.get_ratio_abundance(num='oxygen', den='iron', weight=None))
+#                 d21 = f.create_dataset('OFe_1kpc', data = self.get_ratio_abundance(num='oxygen', den='iron', weight=None, radius=1))
+#                 d22 = f.create_dataset('FeH_gas_Re', data = self.get_ratio_gas_abundance(num='iron', den='hydrogen', radius=None))
+#                 d23 = f.create_dataset('FeH_gas_1kpc', data = self.get_ratio_gas_abundance(num='iron', den='hydrogen', radius=1))
+#                 d24 = f.create_dataset('OH_gas_Re', data = self.get_ratio_gas_abundance(num='oxygen', den='hydrogen', radius=None))
+#                 d25 = f.create_dataset('OH_gas_1kpc', data = self.get_ratio_gas_abundance(num='oxygen', den='hydrogen', radius=1))
+#                 d26 = f.create_dataset('percentile_age', data = self.get_percentile_stellar_age())
                 
         with h5py.File('galaxy_population_data_'+str(self.redshift)+'.hdf5', 'r') as f:
             ids = f['ids'][:]
@@ -216,17 +221,17 @@ class GalaxyPopulation():
             FeH_1kpc = f['FeH_1kpc'][:]
             MgFe_1kpc = f['MgFe_1kpc'][:]
             MgH_1kpc = f['MgH_1kpc'][:]
-            gas_mass_1kpc = f['gas_mass_1kpc'][:]
-            stellar_mass_1kpc = f['stellar_mass_1kpc'][:]
-            OH_Re = f['OH_Re']
-            OH_1kpc = f['OH_1kpc']
-            OFe_Re = f['OFe_Re']
-            OFe_1kpc = f['OFe_1kpc']
-            FeH_gas_Re = f['FeH_gas_Re']
-            FeH_gas_1kpc = f['FeH_gas_1kpc']
-            OH_gas_Re = f['FeH_gas_Re']
-            OH_gas_1kpc = f['FeH_gas_1kpc']
-            percentile_age = f['percentile_age'][:]
+#             gas_mass_1kpc = f['gas_mass_1kpc'][:]
+#             stellar_mass_1kpc = f['stellar_mass_1kpc'][:]
+#             OH_Re = f['OH_Re']
+#             OH_1kpc = f['OH_1kpc']
+#             OFe_Re = f['OFe_Re']
+#             OFe_1kpc = f['OFe_1kpc']
+#             FeH_gas_Re = f['FeH_gas_Re']
+#             FeH_gas_1kpc = f['FeH_gas_1kpc']
+#             OH_gas_Re = f['FeH_gas_Re']
+#             OH_gas_1kpc = f['FeH_gas_1kpc']
+#             percentile_age = f['percentile_age'][:]
 
         galaxy_population_data = {
                                     'ids': ids,
@@ -244,17 +249,17 @@ class GalaxyPopulation():
                                     'FeH_1kpc': FeH_1kpc,
                                     'MgFe_1kpc': MgFe_1kpc,
                                     'MgH_1kpc': MgH_1kpc,
-                                    'gas_mass_1kpc': gas_mass_1kpc,
-                                    'stellar_mass_1kpc': stellar_mass_1kpc,
-                                    'OH_Re': OH_Re,
-                                    'OH_1kpc': OH_1kpc,
-                                    'OFe_Re': OFe_Re,
-                                    'OFe_1kpc': OFe_1kpc,
-                                    'FeH_gas_Re': FeH_gas_Re,
-                                    'FeH_gas_1kpc': FeH_gas_1kpc,
-                                    'OH_gas_Re': OH_gas_Re,
-                                    'OH_gas_1kpc': OH_gas_1kpc,
-                                    'percentile_age': percentile_age
+#                                     'gas_mass_1kpc': gas_mass_1kpc,
+#                                     'stellar_mass_1kpc': stellar_mass_1kpc,
+#                                     'OH_Re': OH_Re,
+#                                     'OH_1kpc': OH_1kpc,
+#                                     'OFe_Re': OFe_Re,
+#                                     'OFe_1kpc': OFe_1kpc,
+#                                     'FeH_gas_Re': FeH_gas_Re,
+#                                     'FeH_gas_1kpc': FeH_gas_1kpc,
+#                                     'OH_gas_Re': OH_gas_Re,
+#                                     'OH_gas_1kpc': OH_gas_1kpc,
+#                                     'percentile_age': percentile_age
                                  }
         return galaxy_population_data
 
