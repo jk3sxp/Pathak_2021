@@ -73,6 +73,7 @@ def get_galaxy_particle_data(id, redshift, populate_dict=False):
         pass
     else:
         sub, saved_filename = download_data(id, redshift)
+#         print(saved_filename)
         with h5py.File(saved_filename, mode='r') as f: #read from h5py file
             dx = f['PartType4']['Coordinates'][:,0] - sub['pos_x']
             dy = f['PartType4']['Coordinates'][:,1] - sub['pos_y']

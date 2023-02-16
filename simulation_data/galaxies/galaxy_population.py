@@ -36,7 +36,7 @@ class GalaxyPopulation():
             ids: array of simulation ids of galaxies in selection
                     [units: none] 
     '''
-        if len(self.ids) != 0:
+        if len(ids) != 0:
             self.ids = ids
             self.mass_min = mass_min
             self.mass_max = mass_max
@@ -59,7 +59,7 @@ class GalaxyPopulation():
  
 
 
-    def get_galaxy_population_data(self):
+    def get_galaxy_population_data(self, ids=[]):
         '''
         input params: 
             [none]
@@ -99,37 +99,37 @@ class GalaxyPopulation():
         galaxy_population_data = {}
         import h5py
         from pathlib import Path
-        if Path('galaxy_population_data_'+str(self.redshift)+'.hdf5').is_file():
-            with h5py.File('galaxy_population_data_'+str(self.redshift)+'.hdf5', 'a') as f:
-                del f['FeH_Re']
-                print('deleted')
-                d10 = f.create_dataset('FeH_Re', data = self.get_ratio_abundance(num='iron', den='hydrogen', weight='luminosity'))
-                print('10/25')
+#         if Path('galaxy_population_data_'+str(self.redshift)+'.hdf5').is_file():
+#             with h5py.File('galaxy_population_data_'+str(self.redshift)+'.hdf5', 'a') as f:
+#                 del f['FeH_Re']
+#                 print('deleted')
+#                 d10 = f.create_dataset('FeH_Re', data = self.get_ratio_abundance(num='iron', den='hydrogen', weight='luminosity'))
+#                 print('10/25')
                 
-                del f['MgFe_Re']
-                print('deleted')
-                d11 = f.create_dataset('MgFe_Re', data = self.get_ratio_abundance(num='magnesium', den='iron', weight='luminosity'))
-                print('11/25')
+#                 del f['MgFe_Re']
+#                 print('deleted')
+#                 d11 = f.create_dataset('MgFe_Re', data = self.get_ratio_abundance(num='magnesium', den='iron', weight='luminosity'))
+#                 print('11/25')
                 
-                del f['MgH_Re']
-                print('deleted')
-                d12 = f.create_dataset('MgH_Re', data = self.get_ratio_abundance(num='magnesium', den='hydrogen', weight='luminosity'))
-                print('12/25')
+#                 del f['MgH_Re']
+#                 print('deleted')
+#                 d12 = f.create_dataset('MgH_Re', data = self.get_ratio_abundance(num='magnesium', den='hydrogen', weight='luminosity'))
+#                 print('12/25')
                 
-                del f['FeH_1kpc']
-                print('deleted')
-                d13 = f.create_dataset('FeH_1kpc', data = self.get_ratio_abundance(num='iron', den='hydrogen', weight='luminosity', radius=1.0))
-                print('13/25')
+#                 del f['FeH_1kpc']
+#                 print('deleted')
+#                 d13 = f.create_dataset('FeH_1kpc', data = self.get_ratio_abundance(num='iron', den='hydrogen', weight='luminosity', radius=1.0))
+#                 print('13/25')
                 
-                del f['MgFe_1kpc']
-                print('deleted')
-                d14 = f.create_dataset('MgFe_1kpc', data = self.get_ratio_abundance(num='magnesium', den='iron', weight='luminosity', radius=1.0))
-                print('14/25')
+#                 del f['MgFe_1kpc']
+#                 print('deleted')
+#                 d14 = f.create_dataset('MgFe_1kpc', data = self.get_ratio_abundance(num='magnesium', den='iron', weight='luminosity', radius=1.0))
+#                 print('14/25')
                 
-                del f['MgH_1kpc']
-                print('deleted')
-                d15 = f.create_dataset('MgH_1kpc', data = self.get_ratio_abundance(num='magnesium', den='hydrogen', weight='luminosity', radius=1.0))
-                print('15/25')
+#                 del f['MgH_1kpc']
+#                 print('deleted')
+#                 d15 = f.create_dataset('MgH_1kpc', data = self.get_ratio_abundance(num='magnesium', den='hydrogen', weight='luminosity', radius=1.0))
+#                 print('15/25')
                 
 #                 d16 = f.create_dataset('gas_mass_1kpc', data = self.get_gas_mass_1kpc())
 #                 d17 = f.create_dataset('stellar_mass_1kpc', data = self.get_stellar_mass_1kpc())
@@ -173,11 +173,12 @@ class GalaxyPopulation():
 #                 d25 = f.create_dataset('OH_gas_1kpc', data = self.get_ratio_gas_abundance(num='oxygen', den='hydrogen', radius=1))
 #                 print('25/25')
 #                 d26 = f.create_dataset('percentile_age', data = self.get_percentile_stellar_age())
-            pass
-        else:
+#             pass
+#         else:
+        if redshift < 10:
             with h5py.File('galaxy_population_data_'+str(self.redshift)+'.hdf5', 'a') as f:
                 #writing data
-                d1 = f.create_dataset('ids', data = self.select_galaxies(redshift=redshift, mass_min=10.5, mass_max=12))
+                d1 = f.create_dataset('ids', data = self.select_galaxies(ids=ids, redshift=redshift, mass_min=self.mass_min, mass_max=self.mass_max))
                 d2 = f.create_dataset('median_age', data = self.get_median_stellar_age())
                 d3 = f.create_dataset('halfmass_radius', data = self.get_halfmass_rad_stars())
                 d4 = f.create_dataset('total_mass', data = self.get_total_stellar_mass())
