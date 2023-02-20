@@ -99,7 +99,7 @@ class GalaxyPopulation():
         galaxy_population_data = {}
         import h5py
         from pathlib import Path
-#         if Path('galaxy_population_data_'+str(self.redshift)+'.hdf5').is_file():
+        if Path('galaxy_population_data_'+str(self.redshift)+'.hdf5').is_file():
 #             with h5py.File('galaxy_population_data_'+str(self.redshift)+'.hdf5', 'a') as f:
 #                 del f['FeH_Re']
 #                 print('deleted')
@@ -131,8 +131,14 @@ class GalaxyPopulation():
 #                 d15 = f.create_dataset('MgH_1kpc', data = self.get_ratio_abundance(num='magnesium', den='hydrogen', weight='luminosity', radius=1.0))
 #                 print('15/25')
                 
+#                 del f['gas_mass_1kpc']
+#                 print('deleted')
 #                 d16 = f.create_dataset('gas_mass_1kpc', data = self.get_gas_mass_1kpc())
+        
+#                 del f['stellar_mass_1kpc']
+#                 print('deleted')
 #                 d17 = f.create_dataset('stellar_mass_1kpc', data = self.get_stellar_mass_1kpc())
+                
 #                 del f['OH_Re']
 #                 print('deleted')
 #                 d18 = f.create_dataset('OH_Re', data = self.get_ratio_abundance(num='oxygen', den='hydrogen', weight=None))
@@ -173,28 +179,27 @@ class GalaxyPopulation():
 #                 d25 = f.create_dataset('OH_gas_1kpc', data = self.get_ratio_gas_abundance(num='oxygen', den='hydrogen', radius=1))
 #                 print('25/25')
 #                 d26 = f.create_dataset('percentile_age', data = self.get_percentile_stellar_age())
-#             pass
-#         else:
-        if redshift < 10:
+            pass
+        else:
             with h5py.File('galaxy_population_data_'+str(self.redshift)+'.hdf5', 'a') as f:
                 #writing data
-                d1 = f.create_dataset('ids', data = self.select_galaxies(ids=ids, redshift=redshift, mass_min=self.mass_min, mass_max=self.mass_max))
-                d2 = f.create_dataset('median_age', data = self.get_median_stellar_age())
-                d3 = f.create_dataset('halfmass_radius', data = self.get_halfmass_rad_stars())
-                d4 = f.create_dataset('total_mass', data = self.get_total_stellar_mass())
+#                 d1 = f.create_dataset('ids', data = self.select_galaxies(ids=ids, redshift=redshift, mass_min=self.mass_min, mass_max=self.mass_max))
+#                 d2 = f.create_dataset('median_age', data = self.get_median_stellar_age())
+#                 d3 = f.create_dataset('halfmass_radius', data = self.get_halfmass_rad_stars())
+#                 d4 = f.create_dataset('total_mass', data = self.get_total_stellar_mass())
 #                 d5 = f.create_dataset('halflight_radius_U', data = self.get_halflight_rad_stars(band='U', bound=0.5))
 #                 d6 = f.create_dataset('halflight_radius_V', data = self.get_halflight_rad_stars(band='V', bound=0.5))
 #                 d7 = f.create_dataset('halflight_radius_I', data = self.get_halflight_rad_stars(band='I', bound=0.5))
-                d8 = f.create_dataset('newbin_current_SFR', data = self.get_timeaverage_stellar_formation_rate(timescale=0, binwidth=0.01))
+#                 d8 = f.create_dataset('newbin_current_SFR', data = self.get_timeaverage_stellar_formation_rate(timescale=0, binwidth=0.01))
 #                 #d9 = f.create_dataset('maximum_merger_ratio_30kpc_current_fraction', data = self.get_max_merger_ratio(scale=30))
-                d10 = f.create_dataset('FeH_Re', data = self.get_ratio_abundance(num='iron', den='hydrogen', weight='luminosity'))
-                d11 = f.create_dataset('MgFe_Re', data = self.get_ratio_abundance(num='magnesium', den='iron', weight='luminosity'))
-                d12 = f.create_dataset('MgH_Re', data = self.get_ratio_abundance(num='magnesium', den='hydrogen', weight='luminosity'))
-                d13 = f.create_dataset('FeH_1kpc', data = self.get_ratio_abundance(num='iron', den='hydrogen', weight='luminosity', radius=1.0))
-                d14 = f.create_dataset('MgFe_1kpc', data = self.get_ratio_abundance(num='magnesium', den='iron', weight='luminosity', radius=1.0))
-                d15 = f.create_dataset('MgH_1kpc', data = self.get_ratio_abundance(num='magnesium', den='hydrogen', weight='luminosity', radius=1.0))
-#                 d16 = f.create_dataset('gas_mass_1kpc', data = self.get_gas_mass_1kpc())
-#                 d17 = f.create_dataset('stellar_mass_1kpc', data = self.get_stellar_mass_1kpc())
+#                 d10 = f.create_dataset('FeH_Re', data = self.get_ratio_abundance(num='iron', den='hydrogen', weight='luminosity'))
+#                 d11 = f.create_dataset('MgFe_Re', data = self.get_ratio_abundance(num='magnesium', den='iron', weight='luminosity'))
+#                 d12 = f.create_dataset('MgH_Re', data = self.get_ratio_abundance(num='magnesium', den='hydrogen', weight='luminosity'))
+#                 d13 = f.create_dataset('FeH_1kpc', data = self.get_ratio_abundance(num='iron', den='hydrogen', weight='luminosity', radius=1.0))
+#                 d14 = f.create_dataset('MgFe_1kpc', data = self.get_ratio_abundance(num='magnesium', den='iron', weight='luminosity', radius=1.0))
+#                 d15 = f.create_dataset('MgH_1kpc', data = self.get_ratio_abundance(num='magnesium', den='hydrogen', weight='luminosity', radius=1.0))
+                d16 = f.create_dataset('gas_mass_1kpc', data = self.get_gas_mass_1kpc())
+                d17 = f.create_dataset('stellar_mass_1kpc', data = self.get_stellar_mass_1kpc())
 #                 d18 = f.create_dataset('OH_Re', data = self.get_ratio_abundance(num='oxygen', den='hydrogen', weight=None))
 #                 d19 = f.create_dataset('OH_1kpc', data = self.get_ratio_abundance(num='oxygen', den='hydrogen', weight=None, radius=1))
 #                 d20 = f.create_dataset('OFe_Re', data = self.get_ratio_abundance(num='oxygen', den='iron', weight=None))
@@ -207,7 +212,6 @@ class GalaxyPopulation():
                 
         with h5py.File('galaxy_population_data_'+str(self.redshift)+'.hdf5', 'r') as f:
             ids = f['ids'][:]
-            print(len(ids))
             median_age = f['median_age'][:]
             halfmass_radius = f['halfmass_radius'][:]
             total_mass = f['total_mass'][:]
@@ -222,8 +226,8 @@ class GalaxyPopulation():
             FeH_1kpc = f['FeH_1kpc'][:]
             MgFe_1kpc = f['MgFe_1kpc'][:]
             MgH_1kpc = f['MgH_1kpc'][:]
-#             gas_mass_1kpc = f['gas_mass_1kpc'][:]
-#             stellar_mass_1kpc = f['stellar_mass_1kpc'][:]
+            gas_mass_1kpc = f['gas_mass_1kpc'][:]
+            stellar_mass_1kpc = f['stellar_mass_1kpc'][:]
 #             OH_Re = f['OH_Re']
 #             OH_1kpc = f['OH_1kpc']
 #             OFe_Re = f['OFe_Re']

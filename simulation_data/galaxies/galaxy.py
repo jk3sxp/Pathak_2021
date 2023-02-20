@@ -528,7 +528,7 @@ def halflight_rad_stars(id, redshift, band, bound=0.5):
 
 
 
-def age_profile(id, redshift, n_bins=20, scatter=False):
+def age_profile(id, redshift, n_bins=20):
     '''
     input params: 
         id: the simulation id of target galaxy: integer (specific to simulation, pre-check) 
@@ -559,27 +559,26 @@ def age_profile(id, redshift, n_bins=20, scatter=False):
     radial_percentiles = np.zeros(n_bins + 1) #N+1 for N percentiles 
     for i in range(1, (n_bins+1)):
         radial_percentiles[i] = np.percentile(R, (100/n_bins)*i) 
-    R_e = np.nanmedian(R)
+    R_e = stellar_data['halfmassrad_stars']
     statistic, bin_edges, bin_number = scipy.stats.binned_statistic(R, LookbackTime, 'median', bins=radial_percentiles)
     
-    if scatter==False:
-        return statistic, radial_percentiles[:-1]#, R_e#, R/R_e, LookbackTime, np.log10(metallicity)
+    return statistic, radial_percentiles[:-1]
         
-    else:
-        plt.figure(figsize=(10,7)) # 10 is width, 7 is height
-        plt.scatter(R/R_e, LookbackTime, c=np.log10(metallicity), s=0.5, alpha=0.7)#c=np.log10(metallicity)
-        plt.plot(np.array(radial_percentiles[1:]/R_e)[4:-4], np.array(statistic)[4:-4], c='black')
-        plt.xlim(1e-2, )
-        plt.ylim(1e-1, )
-        plt.grid()
-        plt.colorbar(boundaries=np.linspace(-3.1,1.1,100), label='Metallicities of Stars ($\log_{10}$ $Z_\odot$)')
-        plt.title('Radial Distance vs Stellar Ages (log/log scale) with Binned Age Trend for id='+str(id))
-        plt.xlabel('Normalized Radial Distance (R/$R_e$)')
-        plt.ylabel('Stellar Ages in Lookback Times(Gyr)')
-        plt.xscale('log')
-        plt.yscale('log')
-        plt.show()
-        return plt.show()
+#     else:
+#         plt.figure(figsize=(10,7)) # 10 is width, 7 is height
+#         plt.scatter(R/R_e, LookbackTime, c=np.log10(metallicity), s=0.5, alpha=0.7)#c=np.log10(metallicity)
+#         plt.plot(np.array(radial_percentiles[1:]/R_e)[4:-4], np.array(statistic)[4:-4], c='black')
+#         plt.xlim(1e-2, )
+#         plt.ylim(1e-1, )
+#         plt.grid()
+#         plt.colorbar(boundaries=np.linspace(-3.1,1.1,100), label='Metallicities of Stars ($\log_{10}$ $Z_\odot$)')
+#         plt.title('Radial Distance vs Stellar Ages (log/log scale) with Binned Age Trend for id='+str(id))
+#         plt.xlabel('Normalized Radial Distance (R/$R_e$)')
+#         plt.ylabel('Stellar Ages in Lookback Times(Gyr)')
+#         plt.xscale('log')
+#         plt.yscale('log')
+#         plt.show()
+#         return plt.show()
     
 
 def potential(id, redshift, n_bins=None):
@@ -692,7 +691,7 @@ def get_solarmassfraction(metal):
     mass_ratio = atomic_mass[metal] / atomic_mass['hydrogen']
     massfraction = metal_abund * mass_ratio * H_massfrac
     
-    return massfraction    
+    return massfraction   
     
 
 def avg_abundance(id, redshift, num, den, weight=None, radius=None):
@@ -977,6 +976,33 @@ def metals_profile(id, redshift, num, den, n_bins=20, profile='median', weight=N
         statistic = np.log10(product_statistic / weight_statistic)
     
     return statistic, log_ratio, percentiles[:-1], xaxis#, R 
+
+
+def starmetalsZ_ratio(id, redshift, num): 
+    '''
+    [num/Z]
+    '''
+    # get particle data
+    stellar_data = get_galaxy_particle_data(id=id , redshift=redshift, populate_dict=True)
+    metallicity = stellar_data['stellar_metallicities']
+    LookbackTime = stellar_data['LookbackTime']
+    
+    metals = ['hydrogen', 'helium', 'carbon', 'nitrogen', 'oxygen', 'neon', 'magnesium', 'silicon', 'iron']
+    
+    # get metal abundance ratio
+    rawdata_filename = os.path.join('redshift_'+str(redshift)+'_data', 'cutout_'+str(id)+'_redshift_'+str(redshift)+'_rawdata.hdf5')    
+    with h5py.File(rawdata_filename, 'r') as f:
+        starFormationTime = f['PartType4']['GFM_StellarFormationTime'][:]
+        num_metal = f['PartType4']['GFM_Metals'][:,metals.index(num)]
+        num_metal = num_metal[starFormationTime>0] # bc R above is calculated using this filter
+    
+    num_solar = get_solarmassfraction(num)
+    
+    big_ratio = (num_metal/num_solar) / metallicity
+    log_ratio = np.log10(big_ratio) # un-weighted  
+    
+    return log_ratio
+
 
 def starmetals_only(id, redshift, num, den): 
     '''
@@ -1430,6 +1456,7 @@ def gasmetals_radius(id, redshift, num, den, solar_units=True, follow_star=False
     else:
         return log_ratio, R
 
+
 def effective_yield(id, redshift, follow_stars=False):
     '''
     follow_stars: if True, effective yield is calculated following star particles (i.e. gas density is taken as the density of the gas cell closest to each star particle)
@@ -1499,6 +1526,40 @@ def effective_yield(id, redshift, follow_stars=False):
     y_eff = Z_gas / np.log(1 / f_gas)
     
     return R_gas, f_gas, y_eff, R_star
+    
+    
+def radius_only(id, redshift, gas=False):
+    '''
+    returns only radius. always returns star particles by default, and gas is optional
+    '''
+    stellar_data = get_galaxy_particle_data(id=id , redshift=redshift, populate_dict=True)
+    dx_star = stellar_data['relative_x_coordinates']
+    dy_star = stellar_data['relative_y_coordinates']
+    dz_star = stellar_data['relative_z_coordinates']
+    R_star = (dx_star**2 + dy_star**2 + dz_star**2)**(1/2)#units: physical kpc
+    
+    # gas particle locations
+    if gas:
+        rawdata_filename = os.path.join('redshift_'+str(redshift)+'_data', 'cutout_'+str(id)+'_redshift_'+str(redshift)+'_rawdata.hdf5')    
+        with h5py.File(rawdata_filename, 'r') as f:
+            if 'PartType0' in f:
+                sub, saved_filename = download_data(id, redshift)
+
+                dx_gas = f['PartType0']['Coordinates'][:,0] - sub['pos_x']
+                dy_gas = f['PartType0']['Coordinates'][:,1] - sub['pos_y']
+                dz_gas = f['PartType0']['Coordinates'][:,2] - sub['pos_z']
+
+                dx_gas = dx_gas*a/h # physical kpc
+                dy_gas = dy_gas*a/h
+                dz_gas = dz_gas*a/h
+
+                R_gas = (dx_gas**2 + dy_gas**2 + dz_gas**2)**(1/2)#units: physical kpc
+            else:
+                R_gas = 0
+                
+        return R_star, R_gas
+    
+    return R_star
 
 def stellar_gas_metallicities(id, redshift):
     '''
